@@ -1,15 +1,16 @@
+import pathlib
 import unittest
+
 from primalbedtools.bedfiles import (
     BedLine,
-    create_bedline,
-    read_bedfile,
     create_bedfile_str,
-    write_bedfile,
-    group_by_chrom,
-    StrandEnum,
+    create_bedline,
     group_by_amplicon_number,
+    group_by_chrom,
+    group_by_strand,
+    read_bedfile,
+    write_bedfile,
 )
-import pathlib
 
 TEST_BEDFILE = pathlib.Path(__file__).parent / "test.bed"
 
@@ -109,7 +110,7 @@ class TestWriteBedfile(unittest.TestCase):
             sequence="ACGT",
         )
         write_bedfile(self.output_bed_path, ["#header1"], [bedline])
-        with open("test_output.bed", "r") as f:
+        with open("test_output.bed") as f:
             content = f.read()
         self.assertEqual(
             content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
@@ -138,7 +139,7 @@ class TestGroupByChrom(unittest.TestCase):
             primername="scheme_2_LEFT",
             pool=2,
             strand="+",
-            sequence="TGCA",
+            sequence="ACGT",
         )
         grouped = group_by_chrom([bedline1, bedline2])
         self.assertEqual(len(grouped), 2)
@@ -176,7 +177,7 @@ class TestGroupByAmpliconNumber(unittest.TestCase):
             primername="scheme_1_LEFT",
             pool=2,
             strand="+",
-            sequence="TGCA",
+            sequence="ACGT",
         )
         grouped = group_by_amplicon_number([bedline1, bedline2])
         self.assertEqual(len(grouped), 1)
@@ -207,6 +208,41 @@ class TestGroupByAmpliconNumber(unittest.TestCase):
             {bl.primername for bl in grouped[3]},
             {"SARS-CoV-2_3_LEFT_1", "SARS-CoV-2_3_RIGHT_0"},
         )
+
+
+class TestGroupByStrand(unittest.TestCase):
+    def test_group_by_strand(self):
+        bedline1 = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        bedline2 = BedLine(
+            chrom="chr1",
+            start=150,
+            end=250,
+            primername="scheme_1_RIGHT",
+            pool=2,
+            strand="-",
+            sequence="ACGT",
+        )
+        grouped = group_by_strand([bedline1, bedline2])
+        self.assertEqual(len(grouped), 2)
+        self.assertEqual(len(grouped["+"]), 1)
+        self.assertEqual(len(grouped["-"]), 1)
+        self.assertEqual(grouped["+"], [bedline1])
+        self.assertEqual(grouped["-"], [bedline2])
+
+    def test_group_by_strand_file(self):
+        headers, bedlines = read_bedfile(TEST_BEDFILE)
+        grouped = group_by_strand(bedlines)
+        self.assertEqual(len(grouped), 2)
+        self.assertEqual(len(grouped["+"]), 3)
+        self.assertEqual(len(grouped["-"]), 3)
 
 
 if __name__ == "__main__":

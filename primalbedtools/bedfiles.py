@@ -1,6 +1,7 @@
-from pydantic import BaseModel, ConfigDict
 import enum
 import pathlib
+
+from pydantic import BaseModel, ConfigDict
 
 
 class StrandEnum(enum.Enum):
@@ -71,7 +72,7 @@ def create_bedline(bedline: list[str]) -> BedLine:
 def read_bedfile(bedfile: str | pathlib.Path) -> tuple[list[str], list[BedLine]]:
     headers = []
     bedlines = []
-    with open(bedfile, "r") as f:
+    with open(bedfile) as f:
         for line in f.readlines():
             line = line.strip()
 
@@ -130,7 +131,9 @@ def group_by_amplicon_number(list_bedlines: list[BedLine]) -> dict[int, list[Bed
     return bedlines_dict
 
 
-def group_by_strand(list_bedlines: list[BedLine]) -> dict[StrandEnum, list[BedLine]]:
+def group_by_strand(
+    list_bedlines: list[BedLine],
+) -> dict[StrandEnum | str, list[BedLine]]:
     """
     Group a list of BedLine objects by strand.
     """

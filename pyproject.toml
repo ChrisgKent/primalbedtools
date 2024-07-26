@@ -6,9 +6,29 @@ authors = ["ChrisKent <chrisgkent@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "^3.10"
+pydantic = "^2.8.2"
 
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.5.5"
+pre-commit = "^3.7.1"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # isort
+    "I",
+]
+ignore = ["E501"]

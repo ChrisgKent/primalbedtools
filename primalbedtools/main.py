@@ -1,5 +1,6 @@
-from pydantic import BaseModel
 import enum
+
+from pydantic import BaseModel
 
 
 class StrandEnum(enum.Enum):
@@ -54,7 +55,7 @@ def create_bedline(bedline: list[str]) -> BedLine:
 def read_bedfile(bedfile: str) -> tuple[list[str], list[BedLine]]:
     headers = []
     bedlines = []
-    with open(bedfile, "r") as f:
+    with open(bedfile) as f:
         for line in f.readlines():
             line = line.strip()
 
