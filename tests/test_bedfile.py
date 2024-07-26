@@ -110,7 +110,7 @@ class TestWriteBedfile(unittest.TestCase):
             sequence="ACGT",
         )
         write_bedfile(self.output_bed_path, ["#header1"], [bedline])
-        with open("test_output.bed") as f:
+        with open(self.output_bed_path) as f:
             content = f.read()
         self.assertEqual(
             content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
