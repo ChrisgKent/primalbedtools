@@ -3,6 +3,7 @@ import unittest
 
 from primalbedtools.bedfiles import (
     BedLine,
+    BedLineParser,
     create_bedfile_str,
     create_bedline,
     group_by_amplicon_number,
@@ -117,7 +118,7 @@ class TestWriteBedfile(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
-        self.output_bed_path.unlink()
+        self.output_bed_path.unlink(missing_ok=True)
         super().tearDown()
 
 
@@ -243,6 +244,66 @@ class TestGroupByStrand(unittest.TestCase):
         self.assertEqual(len(grouped), 2)
         self.assertEqual(len(grouped["+"]), 3)
         self.assertEqual(len(grouped["-"]), 3)
+
+
+class TestBedLineParser(unittest.TestCase):
+    OUTFILE = pathlib.Path(__file__).parent / "test_bedline_parser_to_file.bed"
+
+    def test_bedline_parser_from_file(self):
+        headers, bedlines = BedLineParser.from_file(TEST_BEDFILE)
+        self.assertEqual(
+            headers, ["# artic-bed-version v3.0", "# artic-sars-cov-2 / 400 / v5.3.2"]
+        )
+
+        self.assertEqual(len(bedlines), 6)
+        self.assertEqual(bedlines[0].chrom, "MN908947.3")
+
+    def test_bedline_parser_from_str(self):
+        with open(TEST_BEDFILE) as f:
+            bedfile_str = f.read()
+        headers, bedlines = BedLineParser.from_str(bedfile_str)
+        self.assertEqual(
+            headers, ["# artic-bed-version v3.0", "# artic-sars-cov-2 / 400 / v5.3.2"]
+        )
+
+        self.assertEqual(len(bedlines), 6)
+        self.assertEqual(bedlines[0].chrom, "MN908947.3")
+
+    def test_bedline_parser_to_str(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        bedfile_str = BedLineParser.to_str(["#header1"], [bedline])
+        self.assertEqual(
+            bedfile_str, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
+        )
+
+    def test_bedline_parser_to_file(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        BedLineParser.to_file(self.OUTFILE, ["#header1"], [bedline])
+        with open(self.OUTFILE) as f:
+            content = f.read()
+        self.assertEqual(
+            content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
+        )
+
+    def tearDown(self) -> None:
+        self.OUTFILE.unlink(missing_ok=True)
+        super().tearDown()
 
 
 if __name__ == "__main__":

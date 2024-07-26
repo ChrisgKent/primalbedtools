@@ -57,6 +57,35 @@ class BedLine(BaseModel):
         return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}\n"
 
 
+class BedLineParser:
+    @staticmethod
+    def from_file(bedfile: str | pathlib.Path) -> tuple[list[str], list[BedLine]]:
+        return read_bedfile(bedfile=bedfile)
+
+    @staticmethod
+    def from_str(bedfile_str: str) -> tuple[list[str], list[BedLine]]:
+        bedfile_lines = bedfile_str.strip().split("\n")
+        headers = []
+        bedlines = []
+        for line in bedfile_lines:
+            line = line.strip()
+            if line.startswith("#"):
+                headers.append(line)
+            elif line:
+                bedlines.append(create_bedline(line.split("\t")))
+        return headers, bedlines
+
+    @staticmethod
+    def to_str(headers: list[str] | None, bedlines: list[BedLine]) -> str:
+        return create_bedfile_str(headers, bedlines)
+
+    @staticmethod
+    def to_file(
+        bedfile: str | pathlib.Path, headers: list[str] | None, bedlines: list[BedLine]
+    ):
+        write_bedfile(bedfile, headers, bedlines)
+
+
 def create_bedline(bedline: list[str]) -> BedLine:
     return BedLine(
         chrom=bedline[0],

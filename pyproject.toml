@@ -1,9 +1,11 @@
 [tool.poetry]
 name = "primalbedtools"
 version = "0.1.0"
-description = ""
+description = "A collection of tools for working with primer.bed files"
 authors = ["ChrisKent <chrisgkent@gmail.com>"]
 readme = "README.md"
+repository = "https://github.com/ChrisgKent/primal-page"
+license = "CC BY-SA 4.0"
 
 [tool.poetry.dependencies]
 python = "^3.10"
