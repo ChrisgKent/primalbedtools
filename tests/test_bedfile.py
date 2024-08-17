@@ -14,6 +14,7 @@ from primalbedtools.bedfiles import (
 )
 
 TEST_BEDFILE = pathlib.Path(__file__).parent / "test.bed"
+TEST_V2_BEDFILE = pathlib.Path(__file__).parent / "test.v2.bed"
 
 
 class TestBedLine(unittest.TestCase):
@@ -43,6 +44,18 @@ class TestBedLine(unittest.TestCase):
             "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n",
         )
 
+    def test_invalid_bedline(self):
+        with self.assertRaises(ValueError):
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=200,
+                primername="fake_primername",
+                pool=1,
+                strand="+",
+                sequence="ACGT",
+            )
+
 
 class TestCreateBedline(unittest.TestCase):
     def test_create_bedline(self):
@@ -66,6 +79,15 @@ class TestReadBedfile(unittest.TestCase):
         )
 
         self.assertEqual(len(bedlines), 6)
+        self.assertEqual(bedlines[0].chrom, "MN908947.3")
+
+    def test_read_v2_bedfile(self):
+        headers, bedlines = read_bedfile(TEST_V2_BEDFILE)
+        # Check for empty headers
+        self.assertEqual(headers, [])
+
+        # Check correct number of bedlines and chrom
+        self.assertEqual(len(bedlines), 10)
         self.assertEqual(bedlines[0].chrom, "MN908947.3")
 
 
@@ -154,10 +176,22 @@ class TestGroupByChrom(unittest.TestCase):
         self.assertEqual(len(grouped), 0)
 
     def test_group_by_chrom_file(self):
+        """
+        Tests grouping by chrom for a v3 (default) bedfile
+        """
         headers, bedlines = read_bedfile(TEST_BEDFILE)
         grouped = group_by_chrom(bedlines)
         self.assertEqual(len(grouped), 1)
         self.assertEqual(len(grouped["MN908947.3"]), 6)
+
+    def test_group_by_chrom_v2_file(self):
+        """
+        Tests grouping by chrom for a v2 bedfile
+        """
+        headers, bedlines = read_bedfile(TEST_V2_BEDFILE)
+        grouped = group_by_chrom(bedlines)
+        self.assertEqual(len(grouped), 1)
+        self.assertEqual(len(grouped["MN908947.3"]), 10)
 
 
 class TestGroupByAmpliconNumber(unittest.TestCase):
