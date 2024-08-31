@@ -1,15 +1,22 @@
+import copy
 import pathlib
+import random
 import unittest
 
 from primalbedtools.bedfiles import (
     BedLine,
     BedLineParser,
+    PrimerNameVersion,
     create_bedfile_str,
     create_bedline,
+    downgrade_primernames,
     group_by_amplicon_number,
     group_by_chrom,
     group_by_strand,
     read_bedfile,
+    sort_bedlines,
+    update_primernames,
+    version_primername,
     write_bedfile,
 )
 
@@ -45,6 +52,7 @@ class TestBedLine(unittest.TestCase):
         )
 
     def test_invalid_bedline(self):
+        # Fake primername should raise ValueError
         with self.assertRaises(ValueError):
             BedLine(
                 chrom="chr1",
@@ -52,6 +60,17 @@ class TestBedLine(unittest.TestCase):
                 end=200,
                 primername="fake_primername",
                 pool=1,
+                strand="+",
+                sequence="ACGT",
+            )
+        # 0-based pool should raise ValueError
+        with self.assertRaises(ValueError):
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=200,
+                primername="scheme_1_LEFT",
+                pool=0,
                 strand="+",
                 sequence="ACGT",
             )
@@ -338,6 +357,110 @@ class TestBedLineParser(unittest.TestCase):
     def tearDown(self) -> None:
         self.OUTFILE.unlink(missing_ok=True)
         super().tearDown()
+
+
+class TestModifyBedLines(unittest.TestCase):
+    v2_bedlines = BedLineParser.from_file(TEST_V2_BEDFILE)[1]
+
+    def test_update_primername_simple(self):
+        local_v2_bedlines = copy.deepcopy(self.v2_bedlines)
+        old_bednames = {bl.primername for bl in local_v2_bedlines}
+
+        # Update primernames
+        v3_bedlines = update_primernames(local_v2_bedlines)
+        new_bednames = {bl.primername for bl in v3_bedlines}
+
+        # Check same length
+        self.assertEqual(len(old_bednames), len(new_bednames))
+
+        # Check for correct primernames
+        self.assertEqual(
+            new_bednames,
+            {
+                "SARS-CoV-2_1_LEFT_1",
+                "SARS-CoV-2_1_RIGHT_1",
+                "SARS-CoV-2_2_LEFT_1",
+                "SARS-CoV-2_2_RIGHT_1",
+                "SARS-CoV-2_3_LEFT_1",
+                "SARS-CoV-2_3_RIGHT_1",
+                "SARS-CoV-2_4_LEFT_1",
+                "SARS-CoV-2_4_RIGHT_1",
+                "SARS-CoV-2_5_LEFT_1",
+                "SARS-CoV-2_5_RIGHT_1",
+            },
+        )
+
+        # Check all the new names are v2
+        self.assertTrue(
+            all(
+                version_primername(name) == PrimerNameVersion.V2
+                for name in new_bednames
+            )
+        )
+
+    def test_update_primername_alt(self):
+        bedlines = [
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=200,
+                primername="test_1_LEFT_alt",
+                pool=1,
+                strand="+",
+                sequence="ACGT",
+            ),
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=200,
+                primername="test_1_LEFT",
+                pool=1,
+                strand="+",
+                sequence="ACGT",
+            ),
+        ]
+        new_bedlines = update_primernames(bedlines)
+        new_primername = {bl.primername for bl in new_bedlines}
+        self.assertEqual(new_primername, {"test_1_LEFT_1", "test_1_LEFT_2"})
+
+    def test_downgrade_primername(self):
+        bedlines = [
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=200,
+                primername="test_1_LEFT",
+                pool=1,
+                strand="+",
+                sequence="ACGT",
+            ),
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=200,
+                primername="test_1_LEFT_alt",
+                pool=1,
+                strand="+",
+                sequence="ACGT",
+            ),
+        ]
+        new_bedlines = downgrade_primernames(bedlines)
+        new_primername = {bl.primername for bl in new_bedlines}
+        self.assertEqual(new_primername, {"test_1_LEFT", "test_1_LEFT_alt1"})
+
+    def test_sort_bedlines(self):
+        # Read in a bedfile
+        headers, bedlines = BedLineParser.from_file(TEST_BEDFILE)
+
+        # Randomly shuffle the bedlines
+        random.seed(100)
+        random_bedlines = random.sample(bedlines, len(bedlines))
+
+        # Sort the bedlines
+        sorted_bedlines = sort_bedlines(random_bedlines)
+
+        # Check that the bedlines are sorted
+        self.assertEqual(sorted_bedlines, bedlines)
 
 
 if __name__ == "__main__":

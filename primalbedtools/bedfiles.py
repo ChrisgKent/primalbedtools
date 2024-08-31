@@ -5,8 +5,26 @@ import re
 from pydantic import BaseModel, ConfigDict, field_validator
 
 # Regular expressions for primer names
-V2_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)_[0-9]+$"
 V1_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)(_ALT[0-9]*|_alt[0-9]*)*$"
+V2_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)_[0-9]+$"
+
+
+class PrimerNameVersion(enum.Enum):
+    INVALID = 0
+    V1 = 1
+    V2 = 2
+
+
+def version_primername(primername: str) -> PrimerNameVersion:
+    """
+    Check the version of a primername.
+    """
+    if re.match(V1_PRIMERNAME, primername):
+        return PrimerNameVersion.V1
+    elif re.match(V2_PRIMERNAME, primername):
+        return PrimerNameVersion.V2
+    else:
+        return PrimerNameVersion.INVALID
 
 
 def check_primername(primername: str) -> bool:
@@ -38,7 +56,9 @@ class BedLine(BaseModel):
     """
 
     # pydantic
-    model_config = ConfigDict(use_enum_values=True, str_strip_whitespace=True)
+    model_config = ConfigDict(
+        use_enum_values=True, str_strip_whitespace=True, validate_assignment=True
+    )
 
     # properties
     chrom: str
@@ -51,15 +71,26 @@ class BedLine(BaseModel):
 
     @field_validator("primername")
     @classmethod
-    def check_primername(cls, v):
-        if not check_primername(v):
-            raise ValueError(f"Invalid primername: {v}")
+    def validate_primername(cls, v):
+        if version_primername(v) == PrimerNameVersion.INVALID:
+            raise ValueError(f"Invalid primername: ({v}). Must be in v1 or v2 format")
+        return v
+
+    @field_validator("pool")
+    @classmethod
+    def check_pool(cls, v):
+        if v < 1:
+            raise ValueError("Pool number must be greater than 0")
         return v
 
     # calculated properties
     @property
     def length(self):
         return self.end - self.start
+
+    @property
+    def primername_version(self) -> PrimerNameVersion:
+        return version_primername(self.primername)
 
     @property
     def amplicon_number(self) -> int:
@@ -221,7 +252,9 @@ def group_by_strand(
     return bedlines_dict
 
 
-def group_primer_pairs(bedlines: list[BedLine]) -> list[tuple[BedLine, BedLine]]:
+def group_primer_pairs(
+    bedlines: list[BedLine],
+) -> list[tuple[list[BedLine], list[BedLine]]]:
     """
     Generate primer pairs from a list of BedLine objects.
     Groups by chrom, then by amplicon number, then pairs forward and reverse primers.
@@ -238,100 +271,98 @@ def group_primer_pairs(bedlines: list[BedLine]) -> list[tuple[BedLine, BedLine]]
             strand_to_bedlines = group_by_strand(amplicon_number_bedlines)
             primer_pairs.append(
                 (
-                    strand_to_bedlines.get(StrandEnum.FORWARD, []),
-                    strand_to_bedlines.get(StrandEnum.REVERSE, []),
+                    strand_to_bedlines.get(StrandEnum.FORWARD.value, []),
+                    strand_to_bedlines.get(StrandEnum.REVERSE.value, []),
                 )
             )
 
     return primer_pairs
 
 
-class PrimerPair:
+def update_primernames(bedlines: list[BedLine]) -> list[BedLine]:
     """
-    A PrimerPair object represents an amplicon with forward and reverse primers.
+    Update primer names to v2 format in place.
+    """
+    # group the bedlines into primerpairs
+    primer_pairs = group_primer_pairs(bedlines)
+
+    # Update the primer names
+    for fbedlines, rbedlines in primer_pairs:
+        # Sort the bedlines by sequence
+        fbedlines.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(fbedlines, start=1):
+            bedline.primername = (
+                f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_LEFT_{i}"
+            )
+
+        rbedlines.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(rbedlines, start=1):
+            bedline.primername = (
+                f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_RIGHT_{i}"
+            )
+
+    return bedlines
+
+
+def downgrade_primernames(bedlines: list[BedLine]) -> list[BedLine]:
+    """
+    Downgrades primer names to v1 format in place.
+    """
+    # group the bedlines into primerpairs
+    primer_pairs = group_primer_pairs(bedlines)
+
+    # Update the primer names
+    for fbedlines, rbedlines in primer_pairs:
+        # Sort the bedlines by sequence
+        fbedlines.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(fbedlines, start=1):
+            alt = "" if i == 1 else f"_alt{i-1}"
+            bedline.primername = (
+                f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_LEFT{alt}"
+            )
+
+        rbedlines.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(rbedlines, start=1):
+            alt = "" if i == 1 else f"_alt{i-1}"
+            bedline.primername = (
+                f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_RIGHT{alt}"
+            )
+
+    return bedlines
+
+
+def sort_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
+    """
+    Sorts bedlines by chrom, start, end, primername.
+    """
+    primerpairs = group_primer_pairs(bedlines)
+    primerpairs.sort(key=lambda x: (x[0][0].chrom, x[0][0].amplicon_number))
+    return [
+        bedline
+        for fbedlines, rbedlines in primerpairs
+        for bedline in fbedlines + rbedlines
+    ]
+
+
+class BedFileModifier:
+    """
+    Collection of methods for modifying BED files.
     """
 
-    fbedlines: list[BedLine]
-    rbedlines: list[BedLine]
-
-    chrom: str
-    pool: int
-    amplicon_number: int
-    prefix: str
-
-    def __init__(self, fbedlines: list[BedLine], rbedlines: list[BedLine]):
-        self.fbedlines = fbedlines
-        self.rbedlines = rbedlines
-
-        all_lines = fbedlines + rbedlines
-
-        # All prefixes must be the same
-        prefixes = set([bedline.amplicon_prefix for bedline in all_lines])
-        if len(prefixes) != 1:
-            raise ValueError(
-                f"All bedlines must have the same prefix, ({','.join(prefixes)})"
-            )
-        self.prefix = prefixes.pop()
-
-        # Check all chrom are the same
-        chroms = set([bedline.chrom for bedline in all_lines])
-        if len(chroms) != 1:
-            raise ValueError(
-                f"All bedlines must be on the same chromosome, ({','.join(chroms)})"
-            )
-        self.chrom = chroms.pop()
-        # Check all pools are the same
-        pools = set([bedline.pool for bedline in all_lines])
-        if len(pools) != 1:
-            raise ValueError(
-                f"All bedlines must be in the same pool, ({','.join(map(str, pools))})"
-            )
-        self.pool = pools.pop()
-        # Check all amplicon numbers are the same
-        amplicon_numbers = set([bedline.amplicon_number for bedline in all_lines])
-        if len(amplicon_numbers) != 1:
-            raise ValueError(
-                f"All bedlines must be the same amplicon, ({','.join(map(str, amplicon_numbers))})"
-            )
-        self.amplicon_number = amplicon_numbers.pop()
-
-    @property
-    def ipool(self) -> int:
-        """Return the 0-based pool number"""
-        return self.pool - 1
-
-    def merge(self) -> tuple[BedLine, BedLine]:
+    @staticmethod
+    def update_primernames(
+        bedlines: list[BedLine],
+    ) -> list[BedLine]:
         """
-        Merges multiple forward and reverse primers into a single bedline
+        Update primer names to v2 format in place.
         """
-        # Handle the fbedlines
-        fbedline_start = min([bedline.start for bedline in self.fbedlines])
-        fbedline_end = max([bedline.end for bedline in self.fbedlines])
-        # Give it the longest seq to maintain the 7col format
-        fbedline_sequence = max(
-            [bedline.sequence for bedline in self.fbedlines], key=len
-        )
+        return update_primernames(bedlines)
 
-        rbedline_start = min([bedline.start for bedline in self.rbedlines])
-        rbedline_end = max([bedline.end for bedline in self.rbedlines])
-        rbedline_sequence = max(
-            [bedline.sequence for bedline in self.rbedlines], key=len
-        )
-
-        return BedLine(
-            chrom=self.chrom,
-            start=fbedline_start,
-            end=fbedline_end,
-            primername=f"{self.prefix}_{self.amplicon_number}_LEFT_1",
-            pool=self.pool,
-            strand=StrandEnum.FORWARD,
-            sequence=fbedline_sequence,
-        ), BedLine(
-            chrom=self.chrom,
-            start=rbedline_start,
-            end=rbedline_end,
-            primername=f"{self.prefix}_{self.amplicon_number}_RIGHT",
-            pool=self.pool,
-            strand=StrandEnum.REVERSE,
-            sequence=rbedline_sequence,
-        )
+    @staticmethod
+    def sort_bedlines(
+        bedlines: list[BedLine],
+    ) -> list[BedLine]:
+        """
+        Sorts the bedlines by chrom, amplicon number, direction, and sequence.
+        """
+        return sort_bedlines(bedlines)
