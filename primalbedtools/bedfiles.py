@@ -1,8 +1,7 @@
 import enum
 import pathlib
 import re
-
-from pydantic import BaseModel, ConfigDict, field_validator
+import typing
 
 # Regular expressions for primer names
 V1_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)(_ALT[0-9]*|_alt[0-9]*)*$"
@@ -41,7 +40,7 @@ class StrandEnum(enum.Enum):
     REVERSE = "-"
 
 
-class BedLine(BaseModel):
+class BedLine:
     """
     A BedLine object represents a single line in a BED file.
 
@@ -55,33 +54,123 @@ class BedLine(BaseModel):
     - sequence : str
     """
 
-    # pydantic
-    model_config = ConfigDict(
-        use_enum_values=True, str_strip_whitespace=True, validate_assignment=True
-    )
-
     # properties
-    chrom: str
-    start: int
-    end: int
-    primername: str
-    pool: int
-    strand: StrandEnum | str
-    sequence: str
+    _chrom: str
+    _start: int
+    _end: int
+    _primername: str
+    _pool: int
+    _strand: str
+    _sequence: str
 
-    @field_validator("primername")
-    @classmethod
-    def validate_primername(cls, v):
+    def __init__(
+        self,
+        chrom,
+        start,
+        end,
+        primername,
+        pool,
+        strand,
+        sequence,
+    ) -> None:
+        self.chrom = chrom
+        self.start = start
+        self.end = end
+        self.primername = primername
+        self.pool = pool
+        self.strand = strand
+        self.sequence = sequence
+
+    @property
+    def chrom(self):
+        return self._chrom
+
+    @chrom.setter
+    def chrom(self, v):
+        try:
+            v = str(v)
+        except ValueError as e:
+            raise ValueError(f"chrom must be a str. Got ({v})") from e
+        self._chrom = v
+
+    @property
+    def start(self):
+        return self._start
+
+    @start.setter
+    def start(self, v):
+        try:
+            v = int(v)
+        except ValueError as e:
+            raise ValueError(f"start must be an int. Got ({v})") from e
+        if v < 0:
+            raise ValueError(f"start must be greater than or equal to 0. Got ({v})")
+        self._start = v
+
+    @property
+    def end(self):
+        return self._end
+
+    @end.setter
+    def end(self, v):
+        try:
+            v = int(v)
+        except ValueError as e:
+            raise ValueError(f"end must be an int. Got ({v})") from e
+        if v < 0:
+            raise ValueError(f"end must be greater than or equal to 0. Got ({v})")
+        self._end = v
+
+    @property
+    def primername(self):
+        return self._primername
+
+    @primername.setter
+    def primername(self, v):
         if version_primername(v) == PrimerNameVersion.INVALID:
             raise ValueError(f"Invalid primername: ({v}). Must be in v1 or v2 format")
-        return v
+        self._primername = v
 
-    @field_validator("pool")
-    @classmethod
-    def check_pool(cls, v):
+    @property
+    def pool(self):
+        return self._pool
+
+    @pool.setter
+    def pool(self, v):
+        try:
+            v = int(v)
+        except ValueError as e:
+            raise ValueError(f"pool must be an int. Got ({v})") from e
         if v < 1:
-            raise ValueError("Pool number must be greater than 0")
-        return v
+            raise ValueError(f"pool is 1-based pos int pool number. Got ({v})")
+        self._pool = v
+
+    @property
+    def strand(self):
+        return self._strand
+
+    @strand.setter
+    def strand(self, v):
+        try:
+            v = str(v)
+        except ValueError as e:
+            raise ValueError(f"strand must be a str. Got ({v})") from e
+
+        if v not in {x.value for x in StrandEnum}:
+            raise ValueError(
+                f"strand must be a str of ({[x.value for x in StrandEnum]}). Got ({v})"
+            )
+        self._strand = v
+
+    @property
+    def sequence(self):
+        return self._sequence
+
+    @sequence.setter
+    def sequence(self, v):
+        if not isinstance(v, str):
+            raise ValueError(f"sequence must be a str. Got ({v})")
+        self._sequence = v.upper()
 
     # calculated properties
     @property
@@ -115,10 +204,12 @@ class BedLineParser:
     """
 
     @staticmethod
-    def from_file(bedfile: str | pathlib.Path) -> tuple[list[str], list[BedLine]]:
+    def from_file(
+        bedfile: typing.Union[str, pathlib.Path],
+    ) -> tuple[list[str], list[BedLine]]:
         """
         Read and parse a BED file and return a tuple of headers and BedLine objects.
-        : param bedfile: str | pathlib.Path
+        : param bedfile: typing.Union[str, pathlib.Path]
         : return: tuple[list[str], list[BedLine]]
         """
         return read_bedfile(bedfile=bedfile)
@@ -142,10 +233,10 @@ class BedLineParser:
         return headers, bedlines
 
     @staticmethod
-    def to_str(headers: list[str] | None, bedlines: list[BedLine]) -> str:
+    def to_str(headers: typing.Optional[list[str]], bedlines: list[BedLine]) -> str:
         """
         Creates a BED string from the headers and BedLine objects.
-        : param headers: list[str] | None
+        : param headers: typing.Optional[list[str]]
         : param bedlines: list[BedLine]
         : return: str
         """
@@ -153,30 +244,60 @@ class BedLineParser:
 
     @staticmethod
     def to_file(
-        bedfile: str | pathlib.Path, headers: list[str] | None, bedlines: list[BedLine]
+        bedfile: typing.Union[str, pathlib.Path],
+        headers: typing.Optional[list[str]],
+        bedlines: list[BedLine],
     ) -> None:
         """
         Creates a BED file from the headers and BedLine objects.
-        : param bedfile: str | pathlib.Path
-        : param headers: list[str] | None
+        : param bedfile: typing.Union[str, pathlib.Path]
+        : param headers: typing.Optional[list[str]]
         : param bedlines: list[BedLine]
         """
         write_bedfile(bedfile, headers, bedlines)
 
 
 def create_bedline(bedline: list[str]) -> BedLine:
-    return BedLine(
-        chrom=bedline[0],
-        start=int(bedline[1]),
-        end=int(bedline[2]),
-        primername=bedline[3],
-        pool=int(bedline[4]),
-        strand=StrandEnum(bedline[5]),
-        sequence=bedline[6],
-    )
+    """
+    Creates a BedLine object from a list of string values.
+
+    :param bedline: list[str]
+        A list of string values representing a BED line. The list should contain the following elements:
+        - chrom: str, the chromosome name
+        - start: str, the start position (will be converted to int)
+        - end: str, the end position (will be converted to int)
+        - primername: str, the name of the primer
+        - pool: str, the pool number (will be converted to int)
+        - strand: str, the strand ('+' or '-')
+        - sequence: str, the sequence of the primer
+
+    :return: BedLine
+        A BedLine object created from the provided values.
+
+    :raises ValueError:
+        If any of the values cannot be converted to the appropriate type.
+    :raises IndexError:
+        If the provided list does not contain the correct number of elements.
+    """
+    try:
+        return BedLine(
+            chrom=bedline[0],
+            start=bedline[1],
+            end=bedline[2],
+            primername=bedline[3],
+            pool=bedline[4],
+            strand=bedline[5],
+            sequence=bedline[6],
+        )
+    except IndexError as a:
+        raise IndexError(
+            f"Invalid BED line value: ({bedline}): has incorrect number of columns"
+        ) from a
 
 
-def read_bedfile(bedfile: str | pathlib.Path) -> tuple[list[str], list[BedLine]]:
+def read_bedfile(
+    bedfile: typing.Union[str, pathlib.Path],
+) -> tuple[list[str], list[BedLine]]:
     headers = []
     bedlines = []
     with open(bedfile) as f:
@@ -192,7 +313,9 @@ def read_bedfile(bedfile: str | pathlib.Path) -> tuple[list[str], list[BedLine]]
     return headers, bedlines
 
 
-def create_bedfile_str(headers: list[str] | None, bedlines: list[BedLine]) -> str:
+def create_bedfile_str(
+    headers: typing.Optional[list[str]], bedlines: list[BedLine]
+) -> str:
     bedfile_str: list[str] = []
     if headers:
         for header in headers:
@@ -208,7 +331,9 @@ def create_bedfile_str(headers: list[str] | None, bedlines: list[BedLine]) -> st
 
 
 def write_bedfile(
-    bedfile: str | pathlib.Path, headers: list[str] | None, bedlines: list[BedLine]
+    bedfile: typing.Union[str, pathlib.Path],
+    headers: typing.Optional[list[str]],
+    bedlines: list[BedLine],
 ):
     with open(bedfile, "w") as f:
         f.write(create_bedfile_str(headers, bedlines))
@@ -240,7 +365,7 @@ def group_by_amplicon_number(list_bedlines: list[BedLine]) -> dict[int, list[Bed
 
 def group_by_strand(
     list_bedlines: list[BedLine],
-) -> dict[StrandEnum | str, list[BedLine]]:
+) -> dict[str, list[BedLine]]:
     """
     Group a list of BedLine objects by strand.
     """

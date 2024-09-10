@@ -8,8 +8,7 @@ repository = "https://github.com/ChrisgKent/primal-page"
 license = "CC BY-SA 4.0"
 
 [tool.poetry.dependencies]
-python = "^3.10"
-pydantic = "^2.8.2"
+python = "^3.9"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -75,6 +75,53 @@ class TestBedLine(unittest.TestCase):
                 sequence="ACGT",
             )
 
+    def test_bedline_parse_params(self):
+        bedline = BedLine(
+            chrom=1,  # int chrom
+            start="100",  # str start
+            end="200",  # str end
+            primername="scheme_1_LEFT",
+            pool="1",  # str pool
+            strand="+",
+            sequence="atcg",  # lowercase sequence
+        )
+        self.assertEqual(bedline.chrom, "1")
+        self.assertEqual(bedline.start, 100)
+        self.assertEqual(bedline.end, 200)
+        self.assertEqual(bedline.pool, 1)
+        self.assertEqual(bedline.sequence, "ATCG")
+
+    def test_bedline_parse_params_invalid(self):
+        valid_bedline = BedLine(
+            chrom="chr1",
+            start="100",
+            end="200",
+            primername="scheme_1_LEFT",
+            pool="1",
+            strand="+",
+            sequence="ATCG",
+        )
+
+        # Invalid pool should raise ValueError
+        with self.assertRaises(ValueError):
+            valid_bedline.pool = "0"
+
+        # Invalid strand should raise ValueError
+        with self.assertRaises(ValueError):
+            valid_bedline.strand = "invalid"
+
+        # Invalid start should raise ValueError
+        with self.assertRaises(ValueError):
+            valid_bedline.start = "invalid"
+
+        # Invalid end should raise ValueError
+        with self.assertRaises(ValueError):
+            valid_bedline.end = "invalid"
+
+        # Invalid primername should raise ValueError
+        with self.assertRaises(ValueError):
+            valid_bedline.primername = "invalid"
+
 
 class TestCreateBedline(unittest.TestCase):
     def test_create_bedline(self):
