@@ -469,6 +469,54 @@ def sort_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
     ]
 
 
+def merge_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
+    """
+    merges bedlines with the same chrom, amplicon number and direction.
+    """
+    merged_bedlines = []
+
+    for fbedlines, rbedlines in group_primer_pairs(bedlines):
+        # Merge forward primers
+        if fbedlines:
+            fbedline_start = min([bedline.start for bedline in fbedlines])
+            fbedline_end = max([bedline.end for bedline in fbedlines])
+            fbedline_sequence = max(
+                [bedline.sequence for bedline in fbedlines], key=len
+            )
+            merged_bedlines.append(
+                BedLine(
+                    chrom=fbedlines[0].chrom,
+                    start=fbedline_start,
+                    end=fbedline_end,
+                    primername=f"{fbedlines[0].amplicon_prefix}_{fbedlines[0].amplicon_number}_LEFT_1",
+                    pool=fbedlines[0].pool,
+                    strand=StrandEnum.FORWARD.value,
+                    sequence=fbedline_sequence,
+                )
+            )
+
+        # Merge reverse primers
+        if rbedlines:
+            rbedline_start = min([bedline.start for bedline in rbedlines])
+            rbedline_end = max([bedline.end for bedline in rbedlines])
+            rbedline_sequence = max(
+                [bedline.sequence for bedline in rbedlines], key=len
+            )
+
+            merged_bedlines.append(
+                BedLine(
+                    chrom=rbedlines[0].chrom,
+                    start=rbedline_start,
+                    end=rbedline_end,
+                    primername=f"{rbedlines[0].amplicon_prefix}_{rbedlines[0].amplicon_number}_RIGHT_1",
+                    pool=rbedlines[0].pool,
+                    strand=StrandEnum.REVERSE.value,
+                    sequence=rbedline_sequence,
+                )
+            )
+    return merged_bedlines
+
+
 class BedFileModifier:
     """
     Collection of methods for modifying BED files.
@@ -491,3 +539,12 @@ class BedFileModifier:
         Sorts the bedlines by chrom, amplicon number, direction, and sequence.
         """
         return sort_bedlines(bedlines)
+
+    @staticmethod
+    def merge_bedlines(
+        bedlines: list[BedLine],
+    ) -> list[BedLine]:
+        """
+        Merges bedlines with the same chrom, amplicon number and direction.
+        """
+        return merge_bedlines(bedlines)

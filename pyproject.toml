@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "primalbedtools"
-version = "0.2.1"
+version = "0.3.0"
 description = "A collection of tools for working with primer.bed files"
 authors = ["ChrisKent <chrisgkent@gmail.com>"]
 readme = "README.md"

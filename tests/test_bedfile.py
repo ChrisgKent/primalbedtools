@@ -13,6 +13,7 @@ from primalbedtools.bedfiles import (
     group_by_amplicon_number,
     group_by_chrom,
     group_by_strand,
+    merge_bedlines,
     read_bedfile,
     sort_bedlines,
     update_primernames,
@@ -508,6 +509,69 @@ class TestModifyBedLines(unittest.TestCase):
 
         # Check that the bedlines are sorted
         self.assertEqual(sorted_bedlines, bedlines)
+
+    def test_merge_bedlines_single(self):
+        bedlines = [
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=120,
+                primername="test_1_RIGHT_1",
+                pool=1,
+                strand="-",
+                sequence="ACGT",
+            ),
+            BedLine(
+                chrom="chr1",
+                start=110,
+                end=130,
+                primername="test_1_RIGHT_2",
+                pool=1,
+                strand="-",
+                sequence="ACGT",
+            ),
+        ]
+        merged_bedlines = merge_bedlines(bedlines)
+        # Check merged bedline
+        self.assertEqual(len(merged_bedlines), 1)
+
+        # Check merged bedline attributes
+        merged_bedline = merged_bedlines[0]
+        self.assertEqual(merged_bedline.chrom, "chr1")
+        self.assertEqual(merged_bedline.start, 100)
+        self.assertEqual(merged_bedline.end, 130)
+        self.assertEqual(merged_bedline.primername, "test_1_RIGHT_1")
+        self.assertEqual(merged_bedline.pool, 1)
+        self.assertEqual(merged_bedline.strand, "-")
+
+    def test_merge_bedlines_nothing(self):
+        bedlines = [
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=120,
+                primername="test_1_LEFT_1",
+                pool=1,
+                strand="+",
+                sequence="ACGT",
+            ),
+            BedLine(
+                chrom="chr1",
+                start=110,
+                end=130,
+                primername="test_1_RIGHT_2",
+                pool=1,
+                strand="-",
+                sequence="ACGT",
+            ),
+        ]
+        merged_bedlines = merge_bedlines(bedlines)
+
+        self.assertEqual(len(merged_bedlines), 2)
+
+    def test_merge_bedlines_empty(self):
+        merged_bedlines = merge_bedlines([])
+        self.assertEqual(len(merged_bedlines), 0)
 
 
 if __name__ == "__main__":

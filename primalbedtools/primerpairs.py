@@ -1,4 +1,4 @@
-from primalbedtools.bedfiles import BedLine, StrandEnum
+from primalbedtools.bedfiles import BedLine, group_primer_pairs
 
 
 class PrimerPair:
@@ -15,7 +15,7 @@ class PrimerPair:
     amplicon_number: int
     prefix: str
 
-    def __init__(self, fbedlines: list[BedLine], rbedlines: list[BedLine], strict=True):
+    def __init__(self, fbedlines: list[BedLine], rbedlines: list[BedLine]):
         self.fbedlines = fbedlines
         self.rbedlines = rbedlines
 
@@ -62,38 +62,19 @@ class PrimerPair:
         """Return the 0-based pool number"""
         return self.pool - 1
 
-    def merge(self) -> tuple[BedLine, BedLine]:
-        """
-        Merges multiple forward and reverse primers into a single bedline
-        """
-        # Handle the fbedlines
-        fbedline_start = min([bedline.start for bedline in self.fbedlines])
-        fbedline_end = max([bedline.end for bedline in self.fbedlines])
-        # Give it the longest seq to maintain the 7col format
-        fbedline_sequence = max(
-            [bedline.sequence for bedline in self.fbedlines], key=len
-        )
+    @property
+    def is_circular(self) -> bool:
+        """Check if the amplicon is circular"""
+        return self.fbedlines[0].end > self.fbedlines[0].start
 
-        rbedline_start = min([bedline.start for bedline in self.rbedlines])
-        rbedline_end = max([bedline.end for bedline in self.rbedlines])
-        rbedline_sequence = max(
-            [bedline.sequence for bedline in self.rbedlines], key=len
-        )
 
-        return BedLine(
-            chrom=self.chrom,
-            start=fbedline_start,
-            end=fbedline_end,
-            primername=f"{self.prefix}_{self.amplicon_number}_LEFT_1",
-            pool=self.pool,
-            strand=StrandEnum.FORWARD,
-            sequence=fbedline_sequence,
-        ), BedLine(
-            chrom=self.chrom,
-            start=rbedline_start,
-            end=rbedline_end,
-            primername=f"{self.prefix}_{self.amplicon_number}_RIGHT_1",
-            pool=self.pool,
-            strand=StrandEnum.REVERSE,
-            sequence=rbedline_sequence,
-        )
+def create_primerpairs(bedlines: list[BedLine]) -> list[PrimerPair]:
+    """
+    Group bedlines into PrimerPair objects
+    """
+    grouped_bedlines = group_primer_pairs(bedlines)
+    primer_pairs = []
+    for fbedlines, rbedlines in grouped_bedlines:
+        primer_pairs.append(PrimerPair(fbedlines, rbedlines))
+
+    return primer_pairs
