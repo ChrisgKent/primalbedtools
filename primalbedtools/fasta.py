@@ -1,9 +1,10 @@
 # To keep deps low here is a simple fasta parser
 
 from io import TextIOBase
+from typing import Union
 
 
-def read_fasta(fasta_file: str | TextIOBase) -> dict[str, str]:
+def read_fasta(fasta_file: Union[str, TextIOBase]) -> dict[str, str]:
     """
     Read a fasta file and return a dictionary with the sequence name as the key and the sequence as the value.
     """
