@@ -1,15 +1,15 @@
 [tool.poetry]
 name = "primalbedtools"
-version = "0.3.0"
+version = "0.4.0"
 description = "A collection of tools for working with primer.bed files"
 authors = ["ChrisKent <chrisgkent@gmail.com>"]
 readme = "README.md"
-repository = "https://github.com/ChrisgKent/primal-page"
+repository = "https://github.com/ChrisgKent/primalbedtools"
 license = "CC BY-SA 4.0"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-
+numpy = "2.0.0"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.5.5"
@@ -18,6 +18,9 @@ pre-commit = "^3.7.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+primalbedtools = "primalbedtools.main:main"
 
 [tool.ruff.lint]
 select = [
