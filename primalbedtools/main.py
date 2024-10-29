@@ -2,6 +2,7 @@ import argparse
 
 from primalbedtools.bedfiles import BedLineParser, sort_bedlines, update_primernames
 from primalbedtools.fasta import read_fasta
+from primalbedtools.primerpairs import create_primerpairs
 from primalbedtools.remap import remap
 
 
@@ -31,8 +32,14 @@ def main():
     )
     update_parser.add_argument("bed", type=str, help="Input BED file")
 
-    args = parser.parse_args()
+    # Amplicon subcommand
+    amplicon_parser = subparsers.add_parser("amplicon", help="Create amplicon BED file")
+    amplicon_parser.add_argument("bed", type=str, help="Input BED file")
+    amplicon_parser.add_argument(
+        "-t", "--primertrim", help="Primertrim the amplicons", action="store_true"
+    )
 
+    args = parser.parse_args()
     # Read in the bed file
     _headers, bedlines = BedLineParser.from_file(args.bed)
 
@@ -43,6 +50,17 @@ def main():
         bedlines = sort_bedlines(bedlines)
     elif args.subparser_name == "update":
         bedlines = update_primernames(bedlines)
+    elif args.subparser_name == "amplicon":
+        primerpairs = create_primerpairs(bedlines)
+
+        # Print the amplicons
+        for primerpair in primerpairs:
+            if args.primertrim:
+                print(primerpair.to_primertrim_str())
+            else:
+                print(primerpair.to_amplicon_str())
+        exit(0)  # Exit early
+
     else:
         parser.print_help()
 
