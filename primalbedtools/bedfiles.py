@@ -221,16 +221,7 @@ class BedLineParser:
         : param bedfile_str: str
         : return: tuple[list[str], list[BedLine]]
         """
-        bedfile_lines = bedfile_str.strip().split("\n")
-        headers = []
-        bedlines = []
-        for line in bedfile_lines:
-            line = line.strip()
-            if line.startswith("#"):
-                headers.append(line)
-            elif line:
-                bedlines.append(create_bedline(line.split("\t")))
-        return headers, bedlines
+        return bedline_from_str(bedfile_str)
 
     @staticmethod
     def to_str(headers: typing.Optional[list[str]], bedlines: list[BedLine]) -> str:
@@ -295,22 +286,30 @@ def create_bedline(bedline: list[str]) -> BedLine:
         ) from a
 
 
+def bedline_from_str(bedline_str: str) -> tuple[list[str], list[BedLine]]:
+    """
+    Create a list of BedLine objects from a BED string.
+    """
+    headers = []
+    bedlines = []
+    for line in bedline_str.strip().split("\n"):
+        line = line.strip()
+
+        # Handle headers
+        if line.startswith("#"):
+            headers.append(line)
+        elif line:
+            bedlines.append(create_bedline(line.split("\t")))
+
+    return headers, bedlines
+
+
 def read_bedfile(
     bedfile: typing.Union[str, pathlib.Path],
 ) -> tuple[list[str], list[BedLine]]:
-    headers = []
-    bedlines = []
     with open(bedfile) as f:
-        for line in f.readlines():
-            line = line.strip()
-
-            if line.startswith("#"):
-                headers.append(line)
-                continue
-            else:
-                bedlines.append(create_bedline(line.split("\t")))
-
-    return headers, bedlines
+        text = f.read()
+        return bedline_from_str(text)
 
 
 def create_bedfile_str(
