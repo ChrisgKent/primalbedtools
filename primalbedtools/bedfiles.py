@@ -63,7 +63,7 @@ class BedLine:
     _pool: int
     _strand: str
     _sequence: str
-    _weight: float | None
+    _weight: Union[float, None]
 
     def __init__(
         self,
