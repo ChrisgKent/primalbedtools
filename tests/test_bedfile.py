@@ -23,6 +23,7 @@ from primalbedtools.bedfiles import (
 
 TEST_BEDFILE = pathlib.Path(__file__).parent / "test.bed"
 TEST_V2_BEDFILE = pathlib.Path(__file__).parent / "test.v2.bed"
+TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "test.weights.bed"
 
 
 class TestBedLine(unittest.TestCase):
@@ -36,6 +37,7 @@ class TestBedLine(unittest.TestCase):
             strand="+",
             sequence="ACGT",
         )
+        # Provides values
         self.assertEqual(bedline.chrom, "chr1")
         self.assertEqual(bedline.start, 100)
         self.assertEqual(bedline.end, 200)
@@ -43,6 +45,9 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(bedline.pool, 1)
         self.assertEqual(bedline.strand, "+")
         self.assertEqual(bedline.sequence, "ACGT")
+        self.assertIsNone(bedline.weight)
+
+        # Derived values
         self.assertEqual(bedline.length, 100)
         self.assertEqual(bedline.amplicon_number, 1)
         self.assertEqual(bedline.amplicon_prefix, "scheme")
@@ -50,6 +55,68 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(
             bedline.to_bed(),
             "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n",
+        )
+
+    def test_bedline_create_empty_weight(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+            weight="",
+        )
+        # Provides values
+        self.assertEqual(bedline.chrom, "chr1")
+        self.assertEqual(bedline.start, 100)
+        self.assertEqual(bedline.end, 200)
+        self.assertEqual(bedline.primername, "scheme_1_LEFT")
+        self.assertEqual(bedline.pool, 1)
+        self.assertEqual(bedline.strand, "+")
+        self.assertEqual(bedline.sequence, "ACGT")
+        self.assertIsNone(bedline.weight)
+
+        # Derived values
+        self.assertEqual(bedline.length, 100)
+        self.assertEqual(bedline.amplicon_number, 1)
+        self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(bedline.ipool, 0)
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n",
+        )
+
+    def test_bedline_create_weight(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+            weight=1.0,
+        )
+        # Provides values
+        self.assertEqual(bedline.chrom, "chr1")
+        self.assertEqual(bedline.start, 100)
+        self.assertEqual(bedline.end, 200)
+        self.assertEqual(bedline.primername, "scheme_1_LEFT")
+        self.assertEqual(bedline.pool, 1)
+        self.assertEqual(bedline.strand, "+")
+        self.assertEqual(bedline.sequence, "ACGT")
+        self.assertEqual(bedline.weight, 1.0)
+
+        # Derived values
+        self.assertEqual(bedline.length, 100)
+        self.assertEqual(bedline.amplicon_number, 1)
+        self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(bedline.ipool, 0)
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t1.0\n",
         )
 
     def test_invalid_bedline(self):
@@ -74,6 +141,30 @@ class TestBedLine(unittest.TestCase):
                 pool=0,
                 strand="+",
                 sequence="ACGT",
+            )
+        # Invalid weight should raise ValueError
+        with self.assertRaises(ValueError):
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=200,
+                primername="scheme_1_LEFT",
+                pool=1,
+                strand="+",
+                sequence="ACGT",
+                weight=-1.0,
+            )
+        # str weight should raise ValueError
+        with self.assertRaises(ValueError):
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=200,
+                primername="scheme_1_LEFT",
+                pool=1,
+                strand="+",
+                sequence="ACGT",
+                weight="A",
             )
 
     def test_bedline_parse_params(self):
@@ -123,6 +214,63 @@ class TestBedLine(unittest.TestCase):
         with self.assertRaises(ValueError):
             valid_bedline.primername = "invalid"
 
+    def test_to_bed(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n",
+        )
+        # Provide weight
+        bedline.weight = 1.0
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t1.0\n",
+        )
+
+    def test_weight_setter(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        # Str non int
+        with self.assertRaises(ValueError):
+            bedline.weight = "!"
+        # Negative
+        with self.assertRaises(ValueError):
+            bedline.weight = -1.0
+        # Negative Str
+        with self.assertRaises(ValueError):
+            bedline.weight = "-1.0"
+
+        # Valid
+        bedline.weight = 1.0
+        self.assertEqual(bedline.weight, 1.0)
+
+        # Explicit None
+        bedline.weight = None
+        self.assertIsNone(bedline.weight)
+
+        # Parse str
+        bedline.weight = "2.0"
+        self.assertEqual(bedline.weight, 2.0)
+
+        # empty str -> None
+        bedline.weight = ""
+        self.assertIsNone(bedline.weight)
+
 
 class TestCreateBedline(unittest.TestCase):
     def test_create_bedline(self):
@@ -156,6 +304,15 @@ class TestReadBedfile(unittest.TestCase):
         # Check correct number of bedlines and chrom
         self.assertEqual(len(bedlines), 10)
         self.assertEqual(bedlines[0].chrom, "MN908947.3")
+
+    def test_read_weight_bedline(self):
+        headers, bedlines = read_bedfile(TEST_WEIGHTS_BEDFILE)
+        # Check for empty headers
+        self.assertEqual(headers, [])
+
+        # Check bedlines have weights
+        for bedline in bedlines:
+            self.assertIsNotNone(bedline.weight)
 
 
 class TestCreateBedfileStr(unittest.TestCase):
@@ -199,14 +356,24 @@ class TestWriteBedfile(unittest.TestCase):
             strand="+",
             sequence="ACGT",
         )
+        # Write non-weighted bedline
         write_bedfile(self.output_bed_path, ["#header1"], [bedline])
         with open(self.output_bed_path) as f:
             content = f.read()
         self.assertEqual(
             content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
         )
+        # Write weighted bedline
+        bedline.weight = 1.0
+        write_bedfile(self.output_bed_path, ["#header1"], [bedline])
+        with open(self.output_bed_path) as f:
+            content = f.read()
+        self.assertEqual(
+            content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t1.0\n"
+        )
 
     def tearDown(self) -> None:
+        # Remove output file
         self.output_bed_path.unlink(missing_ok=True)
         super().tearDown()
 

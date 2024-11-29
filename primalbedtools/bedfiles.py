@@ -2,6 +2,7 @@ import enum
 import pathlib
 import re
 import typing
+from typing import Union
 
 # Regular expressions for primer names
 V1_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)(_ALT[0-9]*|_alt[0-9]*)*$"
@@ -62,6 +63,7 @@ class BedLine:
     _pool: int
     _strand: str
     _sequence: str
+    _weight: float | None
 
     def __init__(
         self,
@@ -72,6 +74,7 @@ class BedLine:
         pool,
         strand,
         sequence,
+        weight=None,
     ) -> None:
         self.chrom = chrom
         self.start = start
@@ -80,6 +83,7 @@ class BedLine:
         self.pool = pool
         self.strand = strand
         self.sequence = sequence
+        self.weight = weight
 
     @property
     def chrom(self):
@@ -172,6 +176,27 @@ class BedLine:
             raise ValueError(f"sequence must be a str. Got ({v})")
         self._sequence = v.upper()
 
+    @property
+    def weight(self):
+        return self._weight
+
+    @weight.setter
+    def weight(self, v: Union[float, str, int, None]):
+        # Catch Empty and None
+        if v is None or v == "":
+            self._weight = None
+            return
+
+        try:
+            v = float(v)
+        except ValueError as e:
+            raise ValueError(
+                f"weight must be a float, None or empty str (''). Got ({v})"
+            ) from e
+        if v < 0:
+            raise ValueError(f"weight must be greater than or equal to 0. Got ({v})")
+        self._weight = v
+
     # calculated properties
     @property
     def length(self):
@@ -195,7 +220,9 @@ class BedLine:
         return self.pool - 1
 
     def to_bed(self) -> str:
-        return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}\n"
+        # If a weight is provided print. Else print empty string
+        weight_str = "" if self.weight is None else f"\t{self.weight}"
+        return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}{weight_str}\n"
 
 
 class BedLineParser:
@@ -271,6 +298,11 @@ def create_bedline(bedline: list[str]) -> BedLine:
         If the provided list does not contain the correct number of elements.
     """
     try:
+        if len(bedline) < 8:
+            weight = None
+        else:
+            weight = float(bedline[7])
+
         return BedLine(
             chrom=bedline[0],
             start=bedline[1],
@@ -279,6 +311,7 @@ def create_bedline(bedline: list[str]) -> BedLine:
             pool=bedline[4],
             strand=bedline[5],
             sequence=bedline[6],
+            weight=weight,
         )
     except IndexError as a:
         raise IndexError(
