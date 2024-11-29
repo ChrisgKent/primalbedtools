@@ -9,7 +9,6 @@ license = "MPL-2.0"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-numpy = "2.0.0"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.5.5"

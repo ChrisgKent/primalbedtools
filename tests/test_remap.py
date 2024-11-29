@@ -3,13 +3,16 @@ import unittest
 
 from primalbedtools.bedfiles import BedLine
 from primalbedtools.fasta import read_fasta
-from primalbedtools.remap import create_mapping_array, remap
+from primalbedtools.remap import (
+    create_mapping_list,
+    remap,
+)
 
 
-class TestMappingArray(unittest.TestCase):
-    def test_mapping_array_simple(self):
+class TestMappingList(unittest.TestCase):
+    def test_mapping_list_simple(self):
         """
-        Test mapping array creation with no gaps
+        Test mapping list creation with no gaps
         """
         fbedline = BedLine("chr1", 10, 20, "test_1_LEFT_1", 1, "+", "ATCGATCGAA")
         rbedline = BedLine(
@@ -23,56 +26,56 @@ class TestMappingArray(unittest.TestCase):
             "----------ATCGATCGAANNNNNNNNNNATCGATCGAA\n"
         )
         msa = read_fasta(fasta_io)
-        msa_to_genome, from_index_to_msa_index = create_mapping_array(
+        msa_to_genome, from_index_to_msa_index = create_mapping_list(
             msa, "chr1", "chr2"
         )
 
         # Check the reference to msa mapping
         self.assertEqual(
-            msa_to_genome[0, from_index_to_msa_index[fbedline.start]], fbedline.start
+            msa_to_genome[0][from_index_to_msa_index[fbedline.start]], fbedline.start
         )
         self.assertEqual(
-            msa_to_genome[0, from_index_to_msa_index[fbedline.end]], fbedline.end
+            msa_to_genome[0][from_index_to_msa_index[fbedline.end]], fbedline.end
         )
         # Check the mapping to the new reference
-        self.assertEqual(msa_to_genome[1, from_index_to_msa_index[fbedline.start]], 0)
-        self.assertEqual(msa_to_genome[1, from_index_to_msa_index[fbedline.end]], 10)
+        self.assertEqual(msa_to_genome[1][from_index_to_msa_index[fbedline.start]], 0)
+        self.assertEqual(msa_to_genome[1][from_index_to_msa_index[fbedline.end]], 10)
 
         # Test the ref sequence is a match
         ref_seq_str = msa["chr1"].replace("-", "")
         self.assertEqual(
             ref_seq_str[
-                msa_to_genome[
-                    0, from_index_to_msa_index[fbedline.start]
-                ] : msa_to_genome[0, from_index_to_msa_index[fbedline.end]]
+                msa_to_genome[0][
+                    from_index_to_msa_index[fbedline.start]
+                ] : msa_to_genome[0][from_index_to_msa_index[fbedline.end]]
             ].replace("-", ""),
             fbedline.sequence,
         )
 
         # Check for the reverse primer
         self.assertEqual(
-            msa_to_genome[0, from_index_to_msa_index[rbedline.start]], rbedline.start
+            msa_to_genome[0][from_index_to_msa_index[rbedline.start]], rbedline.start
         )
         self.assertEqual(
-            msa_to_genome[0, from_index_to_msa_index[rbedline.end]], rbedline.end
+            msa_to_genome[0][from_index_to_msa_index[rbedline.end]], rbedline.end
         )
         # Check the mapping to the new reference
-        self.assertEqual(msa_to_genome[1, from_index_to_msa_index[rbedline.start]], 20)
-        self.assertEqual(msa_to_genome[1, from_index_to_msa_index[rbedline.end]], 30)
+        self.assertEqual(msa_to_genome[1][from_index_to_msa_index[rbedline.start]], 20)
+        self.assertEqual(msa_to_genome[1][from_index_to_msa_index[rbedline.end]], 30)
         # Test the ref sequence is a match
         new_seq_str = msa["chr2"].replace("-", "")
         self.assertEqual(
             new_seq_str[
-                msa_to_genome[
-                    1, from_index_to_msa_index[rbedline.start]
-                ] : msa_to_genome[1, from_index_to_msa_index[rbedline.end]]
+                msa_to_genome[1][
+                    from_index_to_msa_index[rbedline.start]
+                ] : msa_to_genome[1][from_index_to_msa_index[rbedline.end]]
             ].replace("-", ""),
             rbedline.sequence,
         )
 
-    def test_mapping_array_no_id(self):
+    def test_mapping_list_no_id(self):
         """
-        Test mapping array creation when ID is not found
+        Test mapping list creation when ID is not found
         """
         fasta_io = io.StringIO(
             ">chr1\n"
@@ -82,11 +85,11 @@ class TestMappingArray(unittest.TestCase):
         )
         msa = read_fasta(fasta_io)
         with self.assertRaises(ValueError):
-            create_mapping_array(msa, "chr1", "chr3")
+            create_mapping_list(msa, "chr1", "chr3")
 
-    def test_mapping_array_dif_len(self):
+    def test_mapping_list_dif_len(self):
         """
-        Test mapping array creation when the lengths are different
+        Test mapping list creation when the lengths are different
         """
         fasta_io = io.StringIO(
             ">chr1\n"
@@ -96,11 +99,11 @@ class TestMappingArray(unittest.TestCase):
         )
         msa = read_fasta(fasta_io)
         with self.assertRaises(ValueError):
-            create_mapping_array(msa, "chr1", "chr2")
+            create_mapping_list(msa, "chr1", "chr2")
 
-    def test_mapping_array_gaps(self):
+    def test_mapping_list_gaps(self):
         """
-        Tests how mapping array handles gaps
+        Tests how mapping list handles gaps
         """
         fbedline = BedLine("chr1", 10, 20, "test_1_LEFT_1", 1, "+", "ATCGATCGAA")
         rbedline = BedLine("chr1", 30, 40, "test_1_RIGHT_1", 1, "-", "ATCGATCGAA")
@@ -112,55 +115,55 @@ class TestMappingArray(unittest.TestCase):
             "----------ATCG-ATC--GAANNNNNNNNNNATCGATCGAA\n"
         )
         msa = read_fasta(fasta_io)
-        msa_to_genome, from_index_to_msa_index = create_mapping_array(
+        msa_to_genome, from_index_to_msa_index = create_mapping_list(
             msa, "chr1", "chr2"
         )
 
         # Check the reference to msa mapping
         self.assertEqual(
-            msa_to_genome[0, from_index_to_msa_index[fbedline.start]], fbedline.start
+            msa_to_genome[0][from_index_to_msa_index[fbedline.start]], fbedline.start
         )
         self.assertEqual(
-            msa_to_genome[0, from_index_to_msa_index[fbedline.end]], fbedline.end
+            msa_to_genome[0][from_index_to_msa_index[fbedline.end]], fbedline.end
         )
         # Check the mapping to the new reference
-        self.assertEqual(msa_to_genome[1, from_index_to_msa_index[fbedline.start]], 0)
-        self.assertEqual(msa_to_genome[1, from_index_to_msa_index[fbedline.end]], 10)
+        self.assertEqual(msa_to_genome[1][from_index_to_msa_index[fbedline.start]], 0)
+        self.assertEqual(msa_to_genome[1][from_index_to_msa_index[fbedline.end]], 10)
 
         # Test the ref sequence is a match
         ref_seq_str = msa["chr1"].replace("-", "")
         self.assertEqual(
             ref_seq_str[
-                msa_to_genome[
-                    0, from_index_to_msa_index[fbedline.start]
-                ] : msa_to_genome[0, from_index_to_msa_index[fbedline.end]]
+                msa_to_genome[0][
+                    from_index_to_msa_index[fbedline.start]
+                ] : msa_to_genome[0][from_index_to_msa_index[fbedline.end]]
             ].replace("-", ""),
             fbedline.sequence,
         )
 
         # Check for the reverse primer
         self.assertEqual(
-            msa_to_genome[0, from_index_to_msa_index[rbedline.start]], rbedline.start
+            msa_to_genome[0][from_index_to_msa_index[rbedline.start]], rbedline.start
         )
         self.assertEqual(
-            msa_to_genome[0, from_index_to_msa_index[rbedline.end]], rbedline.end
+            msa_to_genome[0][from_index_to_msa_index[rbedline.end]], rbedline.end
         )
         # Check the mapping to the new reference
-        self.assertEqual(msa_to_genome[1, from_index_to_msa_index[rbedline.start]], 20)
-        self.assertEqual(msa_to_genome[1, from_index_to_msa_index[rbedline.end]], 30)
+        self.assertEqual(msa_to_genome[1][from_index_to_msa_index[rbedline.start]], 20)
+        self.assertEqual(msa_to_genome[1][from_index_to_msa_index[rbedline.end]], 30)
         # Test the ref sequence is a match
         new_seq_str = msa["chr2"].replace("-", "")
         self.assertEqual(
             new_seq_str[
-                msa_to_genome[
-                    1, from_index_to_msa_index[rbedline.start]
-                ] : msa_to_genome[1, from_index_to_msa_index[rbedline.end]]
+                msa_to_genome[1][
+                    from_index_to_msa_index[rbedline.start]
+                ] : msa_to_genome[1][from_index_to_msa_index[rbedline.end]]
             ].replace("-", ""),
             rbedline.sequence,
         )
 
 
-class TestRemap(unittest.TestCase):
+class Testremap(unittest.TestCase):
     def test_remap_simple(self):
         """
         Test perfect remapping with no gaps
@@ -209,7 +212,7 @@ class TestRemap(unittest.TestCase):
             ">chr1\n"
             "NNNNNNNNNNATCGATCGAANNNNNNNNNNTTCGATCGATN\n"
             ">chr2\n"
-            "-------------------NNNNNNNNNNN-----------\n"
+            "--------------------NNNNNNNNNNN----------\n"
         )
         msa = read_fasta(fasta_io)
 
