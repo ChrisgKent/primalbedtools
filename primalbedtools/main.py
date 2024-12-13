@@ -1,6 +1,11 @@
 import argparse
 
-from primalbedtools.bedfiles import BedLineParser, sort_bedlines, update_primernames
+from primalbedtools.bedfiles import (
+    BedLineParser,
+    merge_bedlines,
+    sort_bedlines,
+    update_primernames,
+)
 from primalbedtools.fasta import read_fasta
 from primalbedtools.primerpairs import create_primerpairs
 from primalbedtools.remap import remap
@@ -39,6 +44,12 @@ def main():
         "-t", "--primertrim", help="Primertrim the amplicons", action="store_true"
     )
 
+    # merge subcommand
+    merge_parser = subparsers.add_parser(
+        "merge", help="Merge primer clouds into a single bedline"
+    )
+    merge_parser.add_argument("bed", type=str, help="Input BED file")
+
     args = parser.parse_args()
     # Read in the bed file
     _headers, bedlines = BedLineParser.from_file(args.bed)
@@ -60,13 +71,13 @@ def main():
             else:
                 print(primerpair.to_amplicon_str())
         exit(0)  # Exit early
-
+    elif args.subparser_name == "merge":
+        bedlines = merge_bedlines(bedlines)
     else:
         parser.print_help()
 
     bedfile_str = BedLineParser.to_str(_headers, bedlines)
-    for line in bedfile_str.split("\n"):
-        print(line)
+    print(bedfile_str, end="")
 
 
 if __name__ == "__main__":
