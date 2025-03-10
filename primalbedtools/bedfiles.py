@@ -4,9 +4,14 @@ import re
 import typing
 from typing import Union
 
+from primalbedtools.utils import rc_seq
+
 # Regular expressions for primer names
 V1_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)(_ALT[0-9]*|_alt[0-9]*)*$"
 V2_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)_[0-9]+$"
+
+AMPLICON_PREFIX = r"^[a-zA-Z0-9\-]+$"  # any alphanumeric or hyphen
+V1_PRIMER_SUFFIX = r"^(ALT[0-9]*|alt[0-9]*)*$"
 
 
 class PrimerNameVersion(enum.Enum):
@@ -36,9 +41,38 @@ def check_primername(primername: str) -> bool:
     )
 
 
+def check_amplicon_prefix(amplicon_prefix: str) -> bool:
+    """
+    Check if an amplicon prefix is valid.
+    """
+    return bool(re.match(AMPLICON_PREFIX, amplicon_prefix))
+
+
+def create_primername(amplicon_prefix, amplicon_number, direction, primer_suffix):
+    """
+    Creates an unvalidated primername string.
+    """
+    values = [amplicon_prefix, str(amplicon_number), direction, primer_suffix]
+    return "_".join([str(x) for x in values if x is not None])
+
+
 class StrandEnum(enum.Enum):
     FORWARD = "+"
     REVERSE = "-"
+
+
+def string_to_strand_char(s: str) -> str:
+    """
+    Convert a string to a StrandEnum.
+    """
+    parsed_strand = s.upper().strip()
+
+    if parsed_strand == "LEFT":
+        return StrandEnum.FORWARD.value
+    elif parsed_strand == "RIGHT":
+        return StrandEnum.REVERSE.value
+    else:
+        raise ValueError(f"Invalid strand: {s}. Must be LEFT or RIGHT")
 
 
 class BedLine:
@@ -58,12 +92,17 @@ class BedLine:
     # properties
     _chrom: str
     _start: int
+    # primername is a calculated property
     _end: int
-    _primername: str
     _pool: int
     _strand: str
     _sequence: str
     _weight: Union[float, None]
+
+    # primernames components
+    _amplicon_prefix: str
+    _amplicon_number: int
+    _primer_suffix: Union[int, str, None]
 
     def __init__(
         self,
@@ -126,14 +165,112 @@ class BedLine:
         self._end = v
 
     @property
+    def amplicon_number(self) -> int:
+        return self._amplicon_number
+
+    @amplicon_number.setter
+    def amplicon_number(self, v):
+        try:
+            v = int(v)
+        except ValueError as e:
+            raise ValueError(f"amplicon_number must be an int. Got ({v})") from e
+        if v < 0:
+            raise ValueError(
+                f"amplicon_number must be greater than or equal to 0. Got ({v})"
+            )
+
+        self._amplicon_number = v
+
+    @property
+    def amplicon_prefix(self) -> str:
+        return self._amplicon_prefix
+
+    @amplicon_prefix.setter
+    def amplicon_prefix(self, v):
+        try:
+            v = str(v).strip()
+        except ValueError as e:
+            raise ValueError(f"amplicon_prefix must be a str. Got ({v})") from e
+
+        if check_amplicon_prefix(v):
+            self._amplicon_prefix = v
+        else:
+            raise ValueError(
+                f"Invalid amplicon_prefix: ({v}). Must be alphanumeric or hyphen."
+            )
+
+    @property
+    def primer_suffix(self) -> Union[int, str, None]:
+        return self._primer_suffix
+
+    @primer_suffix.setter
+    def primer_suffix(self, v: Union[int, str, None]):
+        if v is None:
+            self._primer_suffix = None
+            return
+
+        try:
+            # Check for int
+            v = int(v)
+            self._primer_suffix = v
+        except ValueError as e:
+            if isinstance(v, str):
+                if not re.match(V1_PRIMER_SUFFIX, v):
+                    raise ValueError(
+                        f"Invalid primer_suffix: ({v}). Must be `alt[0-9]*` or `[0-9]`"
+                    ) from e
+
+                self._primer_suffix = v
+
+            else:
+                raise ValueError(
+                    f"Invalid primer_suffix: ({v}). Must be `alt[0-9]*` or `[0-9]`"
+                ) from e
+
+            return
+
+        if isinstance(v, str):
+            v = v.upper()
+            if not re.match(V1_PRIMER_SUFFIX, v):
+                raise ValueError(
+                    f"Invalid primer_suffix: ({v}). Must be _ALT[0-9]* or _alt[0-9]*"
+                )
+            self._primer_suffix = v
+            return
+
+        if not isinstance(v, int):
+            if v < 0:
+                raise ValueError(
+                    f"primer_suffix must be greater than or equal to 0. Got ({v})"
+                )
+            self._primer_suffix = v
+
+    @property
     def primername(self):
-        return self._primername
+        return create_primername(
+            self.amplicon_prefix,
+            self.amplicon_number,
+            self.direction_str,
+            self.primer_suffix,
+        )
 
     @primername.setter
     def primername(self, v):
         if version_primername(v) == PrimerNameVersion.INVALID:
             raise ValueError(f"Invalid primername: ({v}). Must be in v1 or v2 format")
-        self._primername = v
+
+        # Parse the primername
+        parts = v.split("_")
+        self.amplicon_prefix = parts[0]
+        self.amplicon_number = int(parts[1])
+
+        self.strand = string_to_strand_char(parts[2])
+
+        # Try to parse the primer_suffix
+        try:
+            self.primer_suffix = parts[3]
+        except IndexError:
+            self.primer_suffix = None
 
     @property
     def pool(self):
@@ -207,22 +344,23 @@ class BedLine:
         return version_primername(self.primername)
 
     @property
-    def amplicon_number(self) -> int:
-        return int(self.primername.split("_")[1])
-
-    @property
-    def amplicon_prefix(self) -> str:
-        return self.primername.split("_")[0]
-
-    @property
     def ipool(self) -> int:
         """Return the 0-based pool number"""
         return self.pool - 1
+
+    @property
+    def direction_str(self) -> str:
+        return "LEFT" if self.strand == StrandEnum.FORWARD.value else "RIGHT"
 
     def to_bed(self) -> str:
         # If a weight is provided print. Else print empty string
         weight_str = "" if self.weight is None else f"\t{self.weight}"
         return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}{weight_str}\n"
+
+    def to_fasta(self, rc=False) -> str:
+        if rc:
+            return f">rc-{self.primername}\n{rc_seq(self.sequence)}\n"
+        return f">{self.primername}\n{self.sequence}\n"
 
 
 class BedLineParser:

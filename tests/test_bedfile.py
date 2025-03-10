@@ -271,6 +271,60 @@ class TestBedLine(unittest.TestCase):
         bedline.weight = ""
         self.assertIsNone(bedline.weight)
 
+    def test_update_primername_strand(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+
+        # Update the strand
+        bedline.strand = "-"
+        # Check name has changed
+        self.assertEqual(bedline.primername, "scheme_1_RIGHT")
+
+    def test_update_primername_amplicon(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        # Update amplicon number
+        bedline.amplicon_number = 10
+        self.assertEqual(bedline.primername, "scheme_10_LEFT")
+        # Update amplicon prefix
+        bedline.amplicon_prefix = "test"
+        self.assertEqual(bedline.primername, "test_10_LEFT")
+        # Update the primer suffix
+        bedline.primer_suffix = "alt1"
+        self.assertEqual(bedline.primername, "test_10_LEFT_alt1")
+
+        # Test invalid primer suffix
+        with self.assertRaises(ValueError):
+            bedline.primer_suffix = "test"
+        with self.assertRaises(ValueError):
+            bedline.primer_suffix = " "
+        with self.assertRaises(ValueError):
+            bedline.primer_suffix = "none"
+
+        # Test prefix
+        with self.assertRaises(ValueError):
+            bedline.amplicon_prefix = "10_left"
+        with self.assertRaises(ValueError):
+            bedline.amplicon_prefix = "."
+
+        # test amplicon number
+        with self.assertRaises(ValueError):
+            bedline.amplicon_number = "A"
+
 
 class TestCreateBedline(unittest.TestCase):
     def test_create_bedline(self):
