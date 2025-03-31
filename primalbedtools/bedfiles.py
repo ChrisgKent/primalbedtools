@@ -359,7 +359,7 @@ class BedLine:
 
     def to_fasta(self, rc=False) -> str:
         if rc:
-            return f">rc-{self.primername}\n{rc_seq(self.sequence)}\n"
+            return f">{self.primername}-rc\n{rc_seq(self.sequence)}\n"
         return f">{self.primername}\n{self.sequence}\n"
 
 

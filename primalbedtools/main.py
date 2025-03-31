@@ -50,6 +50,10 @@ def main():
     )
     merge_parser.add_argument("bed", type=str, help="Input BED file")
 
+    # fasta subcommand
+    fasta_parser = subparsers.add_parser("fasta", help="Convert .bed to .fasta")
+    fasta_parser.add_argument("bed", type=str, help="Input BED file")
+
     args = parser.parse_args()
     # Read in the bed file
     _headers, bedlines = BedLineParser.from_file(args.bed)
@@ -73,6 +77,12 @@ def main():
         exit(0)  # Exit early
     elif args.subparser_name == "merge":
         bedlines = merge_bedlines(bedlines)
+    elif args.subparser_name == "fasta":
+        for line in bedlines:
+            print(line.to_fasta(), end="")
+
+        exit(0)  # Exit early
+
     else:
         parser.print_help()
 
