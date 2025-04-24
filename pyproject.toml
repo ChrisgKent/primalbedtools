@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "primalbedtools"
-version = "0.7.0"
+version = "0.8.0"
 description = "A collection of tools for working with primer.bed files"
 authors = ["ChrisKent <chrisgkent@gmail.com>"]
 readme = "README.md"
@@ -13,6 +13,8 @@ python = "^3.9"
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.5.5"
 pre-commit = "^3.7.1"
+coverage = "^7.8.0"
+pytest = "^8.3.5"
 
 [build-system]
 requires = ["poetry-core"]
