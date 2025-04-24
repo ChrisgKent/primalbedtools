@@ -16,6 +16,7 @@ from primalbedtools.bedfiles import (
     merge_bedlines,
     read_bedfile,
     sort_bedlines,
+    string_to_strand_char,
     update_primernames,
     version_primername,
     write_bedfile,
@@ -26,7 +27,30 @@ TEST_V2_BEDFILE = pathlib.Path(__file__).parent / "test.v2.bed"
 TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "test.weights.bed"
 
 
+class TestValidationFuncs(unittest.TestCase):
+    def test_string_to_strand_char(self):
+        # Check expected
+        self.assertEqual(string_to_strand_char("LEFT"), "+")
+        self.assertEqual(string_to_strand_char("RIGHT"), "-")
+
+        # Check unexpected
+        with self.assertRaises(ValueError):
+            string_to_strand_char("")
+
+
 class TestBedLine(unittest.TestCase):
+    def setUp(self) -> None:
+        self.bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        return super().setUp()
+
     def test_bedline_create(self):
         bedline = BedLine(
             chrom="chr1",
@@ -235,16 +259,100 @@ class TestBedLine(unittest.TestCase):
             "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t1.0\n",
         )
 
-    def test_weight_setter(self):
-        bedline = BedLine(
-            chrom="chr1",
-            start=100,
-            end=200,
-            primername="scheme_1_LEFT",
-            pool=1,
-            strand="+",
-            sequence="ACGT",
+    def test_chrom_set(self):
+        bedline = self.bedline
+        # Object
+        with self.assertRaises(ValueError):
+            bedline.chrom = []
+
+        # Valid
+        bedline.chrom = "test"
+        self.assertEqual(bedline.chrom, "test")
+
+        # Strip
+        bedline.chrom = "test1    "
+        self.assertEqual(bedline.chrom, "test1")
+
+        # Internal whitespace
+        bedline.chrom = "test  2"
+        self.assertEqual(bedline.chrom, "test2")
+
+        # Int convert
+        bedline.chrom = 1
+        self.assertEqual(bedline.chrom, "1")
+
+    def test_start_setter(self):
+        # Test setting a valid positive integer
+        bedline = self.bedline
+        bedline.start = 50
+        self.assertEqual(bedline.start, 50)
+
+        # Test setting zero
+        bedline.start = 0
+        self.assertEqual(bedline.start, 0)
+
+        # Str convert
+        bedline.start = "75"
+        self.assertEqual(bedline.start, 75)
+
+        # Float convert
+        bedline.start = 80.5
+        self.assertEqual(bedline.start, 80)
+
+        # Negative
+        with self.assertRaises(ValueError) as context:
+            bedline.start = -5
+        self.assertIn(
+            "start must be greater than or equal to 0", str(context.exception)
         )
+
+        # Negative str
+        with self.assertRaises(ValueError) as context:
+            bedline.start = "-5"
+        self.assertIn(
+            "start must be greater than or equal to 0", str(context.exception)
+        )
+
+        # Object
+        with self.assertRaises(ValueError) as context:
+            bedline.start = [1, 2, 3]
+        self.assertIn("start must be an int", str(context.exception))
+
+    def test_end_setter(self):
+        # Test setting a valid positive integer
+        bedline = self.bedline
+        bedline.end = 250
+        self.assertEqual(bedline.end, 250)
+
+        # Test setting to start value
+        bedline.end = 100
+        self.assertEqual(bedline.end, 100)
+
+        # Str convert
+        bedline.end = "175"
+        self.assertEqual(bedline.end, 175)
+
+        # Float convert
+        bedline.end = 180.5
+        self.assertEqual(bedline.end, 180)
+
+        # Negative
+        with self.assertRaises(ValueError) as context:
+            bedline.end = -5
+        self.assertIn("end must be greater than or equal to 0", str(context.exception))
+
+        # Negative str
+        with self.assertRaises(ValueError) as context:
+            bedline.end = "-5"
+        self.assertIn("end must be greater than or equal to 0", str(context.exception))
+
+        # Object
+        with self.assertRaises(ValueError) as context:
+            bedline.end = [1, 2, 3]
+        self.assertIn("end must be an int", str(context.exception))
+
+    def test_weight_setter(self):
+        bedline = self.bedline
         # Str non int
         with self.assertRaises(ValueError):
             bedline.weight = "!"
@@ -272,31 +380,88 @@ class TestBedLine(unittest.TestCase):
         self.assertIsNone(bedline.weight)
 
     def test_update_primername_strand(self):
-        bedline = BedLine(
-            chrom="chr1",
-            start=100,
-            end=200,
-            primername="scheme_1_LEFT",
-            pool=1,
-            strand="+",
-            sequence="ACGT",
-        )
+        bedline = self.bedline
 
         # Update the strand
         bedline.strand = "-"
         # Check name has changed
         self.assertEqual(bedline.primername, "scheme_1_RIGHT")
 
-    def test_update_primername_amplicon(self):
-        bedline = BedLine(
-            chrom="chr1",
-            start=100,
-            end=200,
-            primername="scheme_1_LEFT",
-            pool=1,
-            strand="+",
-            sequence="ACGT",
-        )
+    def test_pool_setter(self):
+        bedline = self.bedline
+
+        # str
+        with self.assertRaises(ValueError) as cm:
+            bedline.pool = "A"
+        self.assertIn("pool must be an int", str(cm.exception))
+
+        # list
+        with self.assertRaises(ValueError) as cm:
+            bedline.pool = []
+        self.assertIn("pool must be an int", str(cm.exception))
+
+    def test_primername_suffix_setter(self):
+        pass
+
+    def test_primername_setter(self):
+        # Create a basic BedLine instance
+        bedline = self.bedline
+
+        # Test V1 format primername
+        bedline.primername = "test_2_LEFT"
+        self.assertEqual(bedline.amplicon_prefix, "test")
+        self.assertEqual(bedline.amplicon_number, 2)
+        self.assertEqual(bedline.strand, "+")
+        self.assertIsNone(bedline.primer_suffix)
+        self.assertEqual(bedline.primername, "test_2_LEFT")
+
+        # Test V1 format with alt suffix
+        bedline.primername = "test_3_LEFT_alt1"
+        self.assertEqual(bedline.amplicon_prefix, "test")
+        self.assertEqual(bedline.amplicon_number, 3)
+        self.assertEqual(bedline.strand, "+")
+        self.assertEqual(bedline.primer_suffix, "alt1")
+        self.assertEqual(bedline.primername, "test_3_LEFT_alt1")
+
+        # Test V2 format
+        bedline.primername = "test_4_RIGHT_2"
+        self.assertEqual(bedline.amplicon_prefix, "test")
+        self.assertEqual(bedline.amplicon_number, 4)
+        self.assertEqual(bedline.strand, "-")
+        self.assertEqual(bedline.primer_suffix, 2)
+        self.assertEqual(bedline.primername, "test_4_RIGHT_2")
+
+        # Test with hyphenated amplicon prefix
+        bedline.primername = "SARS-CoV-2_5_LEFT"
+        self.assertEqual(bedline.amplicon_prefix, "SARS-CoV-2")
+        self.assertEqual(bedline.amplicon_number, 5)
+        self.assertEqual(bedline.strand, "+")
+        self.assertIsNone(bedline.primer_suffix)
+        self.assertEqual(bedline.primername, "SARS-CoV-2_5_LEFT")
+
+        # Invalid primername (wrong format)
+        with self.assertRaises(ValueError) as context:
+            bedline.primername = "invalid_primername"
+        self.assertIn("Invalid primername", str(context.exception))
+
+        # Invalid primername (missing LEFT/RIGHT)
+        with self.assertRaises(ValueError) as context:
+            bedline.primername = "test_6_MIDDLE"
+        self.assertIn("Invalid primername", str(context.exception))
+
+        # Invalid primername (non-numeric amplicon number)
+        with self.assertRaises(ValueError) as context:
+            bedline.primername = "test_A_LEFT"
+        self.assertIn("Invalid primername", str(context.exception))
+
+        # Test connection with strand property
+        bedline.primername = "test_7_LEFT"
+        self.assertEqual(bedline.strand, "+")
+        bedline.strand = "-"
+        self.assertEqual(bedline.primername, "test_7_RIGHT")
+
+    def test_update_primername(self):
+        bedline = self.bedline
         # Update amplicon number
         bedline.amplicon_number = 10
         self.assertEqual(bedline.primername, "scheme_10_LEFT")
@@ -325,6 +490,39 @@ class TestBedLine(unittest.TestCase):
         with self.assertRaises(ValueError):
             bedline.amplicon_number = "A"
 
+    def test_primername_version(self):
+        bedline = self.bedline
+        # Check old
+        self.assertEqual(bedline.primername_version, PrimerNameVersion.V1)
+
+        # Update
+        bedline.primername = "scheme_1_LEFT_1"
+        self.assertEqual(bedline.primername_version, PrimerNameVersion.V2)
+
+    def test_primer_suffix_setter(self):
+        bedline = self.bedline
+
+        # Invalid primer_suffix (wrong object)
+        with self.assertRaises(ValueError) as context:
+            bedline.primer_suffix = []
+        self.assertIn("Invalid primer_suffix", str(context.exception))
+
+        # Invalid primer_suffix (wrong object)
+        with self.assertRaises(ValueError) as context:
+            bedline.primer_suffix = -1
+        self.assertIn(
+            "primer_suffix must be greater than or equal to 0", str(context.exception)
+        )
+
+        # Invalid v1 primer_suffix
+        with self.assertRaises(ValueError) as context:
+            bedline.primer_suffix = "A"
+        self.assertIn("Invalid V1 primer_suffix:", str(context.exception))
+
+        # Set None
+        bedline.primer_suffix = None
+        self.assertIsNone(bedline.primer_suffix)
+
 
 class TestCreateBedline(unittest.TestCase):
     def test_create_bedline(self):
@@ -338,6 +536,10 @@ class TestCreateBedline(unittest.TestCase):
         self.assertEqual(bedline.pool, 1)
         self.assertEqual(bedline.strand, "+")
         self.assertEqual(bedline.sequence, "ACGT")
+
+    def test_create_bedline_invalid(self):
+        with self.assertRaises(IndexError):
+            create_bedline([""])
 
 
 class TestReadBedfile(unittest.TestCase):

@@ -207,14 +207,15 @@ class BedLine:
             return
 
         try:
-            # Check for int
-            v = int(v)
-            self._primer_suffix = v
-        except ValueError as e:
+            # Check for int. (handles _0 format)
+            int_v = int(v)
+
+        except (ValueError, TypeError) as e:
+            # If int() fails _alt format expected
             if isinstance(v, str):
                 if not re.match(V1_PRIMER_SUFFIX, v):
                     raise ValueError(
-                        f"Invalid primer_suffix: ({v}). Must be `alt[0-9]*` or `[0-9]`"
+                        f"Invalid V1 primer_suffix: ({v}). Must be `alt[0-9]*` or `ALT[0-9]*`"
                     ) from e
 
                 self._primer_suffix = v
@@ -226,21 +227,12 @@ class BedLine:
 
             return
 
-        if isinstance(v, str):
-            v = v.upper()
-            if not re.match(V1_PRIMER_SUFFIX, v):
-                raise ValueError(
-                    f"Invalid primer_suffix: ({v}). Must be _ALT[0-9]* or _alt[0-9]*"
-                )
-            self._primer_suffix = v
-            return
-
-        if not isinstance(v, int):
-            if v < 0:
-                raise ValueError(
-                    f"primer_suffix must be greater than or equal to 0. Got ({v})"
-                )
-            self._primer_suffix = v
+        if int_v < 0:
+            raise ValueError(
+                f"primer_suffix must be greater than or equal to 0. Got ({v})"
+            )
+        else:
+            self._primer_suffix = int_v
 
     @property
     def primername(self):

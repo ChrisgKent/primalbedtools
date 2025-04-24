@@ -24,7 +24,7 @@ def read_fasta(fasta_file: Union[str, TextIOBase]) -> dict[str, str]:
                     raise ValueError(f"Duplicate sequence name: {seq_name}")
                 sequences[seq_name] = []
             else:
-                sequences[seq_name].append(line)
+                sequences[seq_name].append(line)  # type: ignore
 
     # Avoid str concatenation
     for seq_name, seq in sequences.items():

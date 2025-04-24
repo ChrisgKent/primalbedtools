@@ -53,9 +53,13 @@ class PrimerPair:
 
         # Check both forward and reverse primers are present
         if not self.fbedlines:
-            raise ValueError("No forward primers found")
+            raise ValueError(
+                f"No forward primers found for {self.prefix}_{self.amplicon_number}"
+            )
         if not self.rbedlines:
-            raise ValueError("No reverse primers found")
+            raise ValueError(
+                f"No reverse primers found for {self.prefix}_{self.amplicon_number}"
+            )
 
     @property
     def ipool(self) -> int:
@@ -65,7 +69,7 @@ class PrimerPair:
     @property
     def is_circular(self) -> bool:
         """Check if the amplicon is circular"""
-        return self.fbedlines[0].end > self.fbedlines[0].start
+        return self.fbedlines[0].end > self.rbedlines[0].start
 
     @property
     def amplicon_start(self) -> int:
@@ -111,3 +115,13 @@ def create_primerpairs(bedlines: list[BedLine]) -> list[PrimerPair]:
         primer_pairs.append(PrimerPair(fbedlines, rbedlines))
 
     return primer_pairs
+
+
+def do_pp_ol(pp1: PrimerPair, pp2: PrimerPair) -> bool:
+    if range(
+        max(pp1.amplicon_start, pp2.amplicon_start),
+        min(pp1.amplicon_end, pp2.amplicon_end) + 1,
+    ):
+        return True
+    else:
+        return False
