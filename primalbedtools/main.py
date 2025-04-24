@@ -9,11 +9,11 @@ from primalbedtools.bedfiles import (
 from primalbedtools.fasta import read_fasta
 from primalbedtools.primerpairs import create_primerpairs
 from primalbedtools.remap import remap
+from primalbedtools.validate import validate, validate_primerbed
 
 
 def main():
     parser = argparse.ArgumentParser(description="PrimalBedTools")
-
     subparsers = parser.add_subparsers(dest="subparser_name", required=True)
 
     # Remap subcommand
@@ -54,7 +54,20 @@ def main():
     fasta_parser = subparsers.add_parser("fasta", help="Convert .bed to .fasta")
     fasta_parser.add_argument("bed", type=str, help="Input BED file")
 
+    # validate bedfile
+    validate_bedfile_parser = subparsers.add_parser(
+        "validate_bedfile", help="Validate a bedfile"
+    )
+    validate_bedfile_parser.add_argument("bed", type=str, help="Input BED file")
+
+    # validate bedfile
+    validate_parser = subparsers.add_parser(
+        "validate", help="Validate a bedfile and reference"
+    )
+    validate_parser.add_argument("bed", type=str, help="Input BED file")
+    validate_parser.add_argument("fasta", type=str, help="Input reference file")
     args = parser.parse_args()
+
     # Read in the bed file
     _headers, bedlines = BedLineParser.from_file(args.bed)
 
@@ -82,6 +95,13 @@ def main():
             print(line.to_fasta(), end="")
 
         exit(0)  # Exit early
+    elif args.subparser_name == "validate_bedfile":
+        validate_primerbed(bedlines)
+        exit(0)  # early exit
+
+    elif args.subparser_name == "validate":
+        validate(bedpath=args.bed, refpath=args.fasta)
+        exit(0)  # early exit
 
     else:
         parser.print_help()
