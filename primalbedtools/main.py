@@ -2,6 +2,7 @@ import argparse
 
 from primalbedtools.bedfiles import (
     BedLineParser,
+    downgrade_primernames,
     merge_bedlines,
     sort_bedlines,
     update_primernames,
@@ -66,6 +67,19 @@ def main():
     )
     validate_parser.add_argument("bed", type=str, help="Input BED file")
     validate_parser.add_argument("fasta", type=str, help="Input reference file")
+
+    # legacy parser
+    legacy_parser = subparsers.add_parser(
+        "legacy", help="Downgrade a bed file to an older version"
+    )
+    legacy_parser.add_argument("bed", type=str, help="Input BED file")
+    legacy_parser.add_argument(
+        "--merge-alts",
+        help="Should alt primers be merged?",
+        default=False,
+        action="store_true",
+    )
+
     args = parser.parse_args()
 
     # Read in the bed file
@@ -103,6 +117,12 @@ def main():
         validate(bedpath=args.bed, refpath=args.fasta)
         exit(0)  # early exit
 
+    elif args.subparser_name == "legacy":
+        # merge primers if asked
+        if args.merge_alts:
+            bedlines = merge_bedlines(bedlines)
+        bedlines = downgrade_primernames(bedlines=bedlines)
+        _headers = []  # remove headers
     else:
         parser.print_help()
 
