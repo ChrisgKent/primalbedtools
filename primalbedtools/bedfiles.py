@@ -13,6 +13,8 @@ V2_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)_[0-9]+$"
 AMPLICON_PREFIX = r"^[a-zA-Z0-9\-]+$"  # any alphanumeric or hyphen
 V1_PRIMER_SUFFIX = r"^(ALT[0-9]*|alt[0-9]*)*$"
 
+CHROM_REGEX = r"^[a-zA-Z0-9_.]+$"
+
 
 class PrimerNameVersion(enum.Enum):
     INVALID = 0
@@ -30,15 +32,6 @@ def version_primername(primername: str) -> PrimerNameVersion:
         return PrimerNameVersion.V2
     else:
         return PrimerNameVersion.INVALID
-
-
-def check_primername(primername: str) -> bool:
-    """
-    Check if a primername is valid.
-    """
-    return bool(
-        re.match(V1_PRIMERNAME, primername) or re.match(V2_PRIMERNAME, primername)
-    )
 
 
 def check_amplicon_prefix(amplicon_prefix: str) -> bool:
@@ -130,11 +123,11 @@ class BedLine:
 
     @chrom.setter
     def chrom(self, v):
-        try:
-            v = str(v)
-        except ValueError as e:
-            raise ValueError(f"chrom must be a str. Got ({v})") from e
-        self._chrom = v
+        v = "".join(str(v).split())  # strip all whitespace
+        if re.match(CHROM_REGEX, v):
+            self._chrom = v
+        else:
+            raise ValueError(f"chrom must match '{CHROM_REGEX}'. Got (`{v}`)")
 
     @property
     def start(self):
@@ -144,7 +137,7 @@ class BedLine:
     def start(self, v):
         try:
             v = int(v)
-        except ValueError as e:
+        except (ValueError, TypeError) as e:
             raise ValueError(f"start must be an int. Got ({v})") from e
         if v < 0:
             raise ValueError(f"start must be greater than or equal to 0. Got ({v})")
@@ -158,7 +151,7 @@ class BedLine:
     def end(self, v):
         try:
             v = int(v)
-        except ValueError as e:
+        except (ValueError, TypeError) as e:
             raise ValueError(f"end must be an int. Got ({v})") from e
         if v < 0:
             raise ValueError(f"end must be greater than or equal to 0. Got ({v})")
@@ -167,6 +160,10 @@ class BedLine:
     @property
     def amplicon_number(self) -> int:
         return self._amplicon_number
+
+    @property
+    def amplicon_name(self) -> str:
+        return f"{self.amplicon_number}_{self.amplicon_number}"
 
     @amplicon_number.setter
     def amplicon_number(self, v):
@@ -256,6 +253,7 @@ class BedLine:
 
     @primername.setter
     def primername(self, v):
+        v = v.strip()
         if version_primername(v) == PrimerNameVersion.INVALID:
             raise ValueError(f"Invalid primername: ({v}). Must be in v1 or v2 format")
 
@@ -280,7 +278,7 @@ class BedLine:
     def pool(self, v):
         try:
             v = int(v)
-        except ValueError as e:
+        except (ValueError, TypeError) as e:
             raise ValueError(f"pool must be an int. Got ({v})") from e
         if v < 1:
             raise ValueError(f"pool is 1-based pos int pool number. Got ({v})")
@@ -326,7 +324,7 @@ class BedLine:
 
         try:
             v = float(v)
-        except ValueError as e:
+        except (ValueError, TypeError) as e:
             raise ValueError(
                 f"weight must be a float, None or empty str (''). Got ({v})"
             ) from e

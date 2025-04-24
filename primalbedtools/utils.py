@@ -23,4 +23,11 @@ def rc_seq(seq: str) -> str:
     """
     Reverse complement a DNA sequence.
     """
-    return "".join(AMBIGUOUS_DNA_COMPLEMENT[base] for base in reversed(seq))
+    return complement_seq(seq[::-1])
+
+
+def complement_seq(seq: str) -> str:
+    """
+    Complement a DNA sequence.
+    """
+    return "".join(AMBIGUOUS_DNA_COMPLEMENT[base] for base in seq)
