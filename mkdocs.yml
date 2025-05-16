@@ -1,0 +1,25 @@
+site_name: primalbedtools
+
+theme:
+  name: "material"
+
+repo_url: https://github.com/ChrisgKent/primalbedtools
+
+plugins:
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            heading_level: 3
+
+markdown_extensions:
+  - toc:
+      toc_depth: 4
+  - admonition
+
+nav:
+  - Calculation Docs: index.md
+  - How To Guides: how-to-guides.md
+  - Command Line Interface: cli.md
+  - reference.md
