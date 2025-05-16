@@ -69,17 +69,53 @@ def string_to_strand_char(s: str) -> str:
 
 
 class BedLine:
-    """
-    A BedLine object represents a single line in a BED file.
+    """A class representing a single line in a primer.bed file.
+
+    BedLine stores and validates all attributes of a primer entry in a BED file,
+    with support for primername version handling, position validation, and
+    output formatting. It maintains internal consistency between related fields
+    like strand and primer direction, and automatically parses complex primername
+    formats.
 
     Attributes:
-    - chrom: str
-    - start: int
-    - end: int
-    - primername: str
-    - pool: int # 1-based pool number use ipool for 0-based pool number
-    - strand: StrandEnum
-    - sequence : str
+        chrom (str): Chromosome name, must match pattern [a-zA-Z0-9_.]+
+        start (int): 0-based start position of the primer
+        end (int): End position of the primer
+        primername (str): Name of the primer in either format v1 or v2
+        pool (int): 1-based pool number (use ipool for 0-based pool number)
+        strand (str): Strand of the primer ("+" for forward, "-" for reverse)
+        sequence (str): Sequence of the primer (automatically converted to uppercase)
+        weight (float, optional): Weight of the primer for rebalancing, default is None
+
+    Properties:
+        length (int): Length of the primer (end - start)
+        amplicon_number (int): Amplicon number extracted from primername
+        amplicon_prefix (str): Amplicon prefix extracted from primername
+        primer_suffix (int, str, None): Suffix of the primer (integer index or alt string)
+        primername_version (PrimerNameVersion): Version of the primername format
+        ipool (int): 0-based pool number (pool - 1)
+        direction_str (str): Direction as string ("LEFT" or "RIGHT")
+
+    Examples:
+        >>> from primalbedtools.bedfiles import BedLine
+        >>> bedline = BedLine(
+        ...     chrom="chr1",
+        ...     start=100,
+        ...     end=120,
+        ...     primername="scheme_1_LEFT_alt1",
+        ...     pool=1,
+        ...     strand="+",
+        ...     sequence="ACGTACGTACGTACGTACGT",
+        ... )
+        >>> print(bedline.length)
+        20
+        >>> print(bedline.primername_version)
+        PrimerNameVersion.V1
+        >>> print(bedline.to_bed())
+        chr1	100	120	scheme_1_LEFT_alt1	1	+	ACGTACGTACGTACGTACGT
+        >>> bedline.amplicon_prefix = "new-scheme"
+        >>> print(bedline.to_bed())
+        chr1    100     120     new-scheme_1_LEFT_alt1  1       +       ACGTACGTACGTACGTACGT
     """
 
     # properties
@@ -119,6 +155,7 @@ class BedLine:
 
     @property
     def chrom(self):
+        """Return the chromosome of the primer"""
         return self._chrom
 
     @chrom.setter
@@ -131,6 +168,7 @@ class BedLine:
 
     @property
     def start(self):
+        """Return the start position of the primer"""
         return self._start
 
     @start.setter
@@ -159,10 +197,12 @@ class BedLine:
 
     @property
     def amplicon_number(self) -> int:
+        """Return the amplicon number of the primer"""
         return self._amplicon_number
 
     @property
     def amplicon_name(self) -> str:
+        """Return the amplicon name of the primer"""
         return f"{self.amplicon_number}_{self.amplicon_number}"
 
     @amplicon_number.setter
@@ -180,6 +220,7 @@ class BedLine:
 
     @property
     def amplicon_prefix(self) -> str:
+        """Return the amplicon_prefix of the primer"""
         return self._amplicon_prefix
 
     @amplicon_prefix.setter
@@ -198,6 +239,7 @@ class BedLine:
 
     @property
     def primer_suffix(self) -> Union[int, str, None]:
+        """Return the primer_suffix of the primer"""
         return self._primer_suffix
 
     @primer_suffix.setter
@@ -236,6 +278,7 @@ class BedLine:
 
     @property
     def primername(self):
+        """Return the primername of the primer"""
         return create_primername(
             self.amplicon_prefix,
             self.amplicon_number,
@@ -264,6 +307,7 @@ class BedLine:
 
     @property
     def pool(self):
+        """Return the 1-based pool number of the primer"""
         return self._pool
 
     @pool.setter
@@ -278,6 +322,7 @@ class BedLine:
 
     @property
     def strand(self):
+        """Return the strand of the primer"""
         return self._strand
 
     @strand.setter
@@ -295,6 +340,7 @@ class BedLine:
 
     @property
     def sequence(self):
+        """Return the sequence of the primer"""
         return self._sequence
 
     @sequence.setter
@@ -305,6 +351,7 @@ class BedLine:
 
     @property
     def weight(self):
+        """Return the weight of the primer"""
         return self._weight
 
     @weight.setter
@@ -327,6 +374,7 @@ class BedLine:
     # calculated properties
     @property
     def length(self):
+        """Return the index length of the primer"""
         return self.end - self.start
 
     @property
@@ -340,51 +388,96 @@ class BedLine:
 
     @property
     def direction_str(self) -> str:
+        """Return 'LEFT' or 'RIGHT' based on strand"""
         return "LEFT" if self.strand == StrandEnum.FORWARD.value else "RIGHT"
 
     def to_bed(self) -> str:
+        """Convert the BedLine object to a BED formatted string."""
         # If a weight is provided print. Else print empty string
         weight_str = "" if self.weight is None else f"\t{self.weight}"
         return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}{weight_str}\n"
 
     def to_fasta(self, rc=False) -> str:
+        """Convert the BedLine object to a FASTA formatted string."""
         if rc:
             return f">{self.primername}-rc\n{rc_seq(self.sequence)}\n"
         return f">{self.primername}\n{self.sequence}\n"
 
 
 class BedLineParser:
-    """
-    Collection of methods for BED file IO.
+    """Collection of methods for BED file input/output operations.
+
+    This class provides static methods for parsing and writing BED files
+    in various formats, handling both file system operations and string
+    conversions.
     """
 
     @staticmethod
     def from_file(
         bedfile: typing.Union[str, pathlib.Path],
     ) -> tuple[list[str], list[BedLine]]:
-        """
-        Read and parse a BED file and return a tuple of headers and BedLine objects.
-        : param bedfile: typing.Union[str, pathlib.Path]
-        : return: tuple[list[str], list[BedLine]]
+        """Reads and parses a BED file from disk.
+
+        Reads a BED file from the specified path and returns the header lines
+        and parsed BedLine objects.
+
+        Args:
+            bedfile: Path to the BED file. Can be a string or Path object.
+
+        Returns:
+            tuple: A tuple containing: `list[str]`: Header lines from the BED file (lines starting with '#') `list[BedLine]`: Parsed BedLine objects from the file
+
+        Raises:
+            FileNotFoundError: If the specified file doesn't exist
+            ValueError: If the file contains invalid BED entries
+
+        Examples:
+            >>> from primalbedtools.bedfiles import BedLineParser
+            >>> headers, bedlines = BedLineParser.from_file("primers.bed")
+            >>> print(f"Found {len(bedlines)} primer entries")
         """
         return read_bedfile(bedfile=bedfile)
 
     @staticmethod
     def from_str(bedfile_str: str) -> tuple[list[str], list[BedLine]]:
-        """
-        Parse a BED string and return a tuple of headers and BedLine objects.
-        : param bedfile_str: str
-        : return: tuple[list[str], list[BedLine]]
+        """Parses a BED file from a string.
+
+        Parses a string containing BED file content and returns the header lines
+        and parsed BedLine objects.
+
+        Args:
+            bedfile_str: String containing BED file content.
+
+        Returns:
+            tuple: A tuple containing:
+                - list[str]: Header lines from the BED string (lines starting with '#')
+                - list[BedLine]: Parsed BedLine objects from the string
+
+        Raises:
+            ValueError: If the string contains invalid BED entries
         """
         return bedline_from_str(bedfile_str)
 
     @staticmethod
     def to_str(headers: typing.Optional[list[str]], bedlines: list[BedLine]) -> str:
-        """
-        Creates a BED string from the headers and BedLine objects.
-        : param headers: typing.Optional[list[str]]
-        : param bedlines: list[BedLine]
-        : return: str
+        """Creates a BED file string from headers and BedLine objects.
+
+        Combines header lines and BedLine objects into a properly formatted
+        BED file string.
+
+        Args:
+            headers: List of header strings (with or without leading '#')
+                    or None for no headers.
+            bedlines: List of BedLine objects to format as strings.
+
+        Returns:
+            str: A formatted BED file string with headers and entries.
+
+        Examples:
+            >>> from primalbedtools.bedfiles import BedLine, BedLineParser
+            >>> bedlines = [BedLine(...)]  # List of BedLine objects
+            >>> headers = ["Track name=primers"]
+            >>> bed_string = BedLineParser.to_str(headers, bedlines)
         """
         return create_bedfile_str(headers, bedlines)
 
@@ -394,11 +487,20 @@ class BedLineParser:
         headers: typing.Optional[list[str]],
         bedlines: list[BedLine],
     ) -> None:
-        """
-        Creates a BED file from the headers and BedLine objects.
-        : param bedfile: typing.Union[str, pathlib.Path]
-        : param headers: typing.Optional[list[str]]
-        : param bedlines: list[BedLine]
+        """Writes headers and BedLine objects to a BED file.
+
+        Creates or overwrites a BED file at the specified path with
+        the provided headers and BedLine objects.
+
+        Args:
+            bedfile: Path where the BED file will be written.
+                    Can be a string or Path object.
+            headers: List of header strings (with or without leading '#')
+                    or None for no headers.
+            bedlines: List of BedLine objects to write to the file.
+
+        Raises:
+            IOError: If the file cannot be written
         """
         write_bedfile(bedfile, headers, bedlines)
 
@@ -500,8 +602,19 @@ def write_bedfile(
 
 
 def group_by_chrom(list_bedlines: list[BedLine]) -> dict[str, list[BedLine]]:
-    """
-    Group a list of BedLine objects by chrom attribute.
+    """Groups a list of BedLine objects by chromosome.
+
+    Takes a list of BedLine objects and organizes them into a dictionary
+    where keys are chromosome names and values are lists of BedLine objects
+    that belong to that chromosome.
+
+    Args:
+        list_bedlines: A list of BedLine objects to group.
+
+    Returns:
+        dict[str, list[BedLine]]: A dictionary mapping chromosome names (str)
+            to lists of BedLine objects.
+
     """
     bedlines_dict = {}
     for bedline in list_bedlines:
@@ -512,8 +625,19 @@ def group_by_chrom(list_bedlines: list[BedLine]) -> dict[str, list[BedLine]]:
 
 
 def group_by_amplicon_number(list_bedlines: list[BedLine]) -> dict[int, list[BedLine]]:
-    """
-    Group a list of BedLine objects by amplicon number.
+    """Groups a list of BedLine objects by amplicon number.
+
+    Takes a list of BedLine objects and organizes them into a dictionary
+    where keys are amplicon numbers and values are lists of BedLine objects
+    with that amplicon number.
+
+    Args:
+        list_bedlines: A list of BedLine objects to group.
+
+    Returns:
+        dict[int, list[BedLine]]: A dictionary mapping amplicon numbers (int)
+            to lists of BedLine objects.
+
     """
     bedlines_dict = {}
     for bedline in list_bedlines:
@@ -523,11 +647,20 @@ def group_by_amplicon_number(list_bedlines: list[BedLine]) -> dict[int, list[Bed
     return bedlines_dict
 
 
-def group_by_strand(
-    list_bedlines: list[BedLine],
-) -> dict[str, list[BedLine]]:
-    """
-    Group a list of BedLine objects by strand.
+def group_by_strand(list_bedlines: list[BedLine]) -> dict[str, list[BedLine]]:
+    """Groups a list of BedLine objects by strand.
+
+    Takes a list of BedLine objects and organizes them into a dictionary
+    where keys are strand values ("+" or "-") and values are lists of
+    BedLine objects on that strand.
+
+    Args:
+        list_bedlines: A list of BedLine objects to group.
+
+    Returns:
+        dict[str, list[BedLine]]: A dictionary mapping strand values (str)
+            to lists of BedLine objects.
+
     """
     bedlines_dict = {}
     for bedline in list_bedlines:
@@ -537,12 +670,47 @@ def group_by_strand(
     return bedlines_dict
 
 
+def group_by_pool(
+    list_bedlines: list[BedLine],
+) -> dict[int, list[BedLine]]:
+    """Groups a list of BedLine objects by pool number.
+
+    Takes a list of BedLine objects and organizes them into a dictionary
+    where keys are pool numbers and values are lists of BedLine objects
+    with that pool number.
+
+    Args:
+        list_bedlines: A list of BedLine objects to group.
+
+    Returns:
+        dict[int, list[BedLine]]: A dictionary mapping pool numbers (int)
+            to lists of BedLine objects.
+
+    """
+    bedlines_dict = {}
+    for bedline in list_bedlines:
+        if bedline.pool not in bedlines_dict:
+            bedlines_dict[bedline.pool] = []
+        bedlines_dict[bedline.pool].append(bedline)
+    return bedlines_dict
+
+
 def group_primer_pairs(
     bedlines: list[BedLine],
 ) -> list[tuple[list[BedLine], list[BedLine]]]:
-    """
-    Generate primer pairs from a list of BedLine objects.
-    Groups by chrom, then by amplicon number, then pairs forward and reverse primers.
+    """Groups BedLine objects into primer pairs by chromosome and amplicon number.
+
+    This function takes a list of BedLine objects and groups them based on chromosome
+    and amplicon number. For each group, it creates a tuple containing the forward
+    (LEFT) primers as the first element and the reverse (RIGHT) primers as the
+    second element.
+
+    Args:
+        bedlines: A list of BedLine objects to group into primer pairs.
+
+    Returns:
+        A list of tuples, where each tuple contains: (First element: List of forward (LEFT) primers, Second element: List of reverse (RIGHT) primers)
+
     """
     primer_pairs = []
 
@@ -678,25 +846,77 @@ def merge_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
 
 
 class BedFileModifier:
-    """
-    Collection of methods for modifying BED files.
+    """Collection of methods for modifying BED files.
+
+    This class provides static methods for common BED file operations such as
+    updating primer names, sorting BED lines, and merging BED lines with the
+    same characteristics.
     """
 
     @staticmethod
     def update_primernames(
         bedlines: list[BedLine],
     ) -> list[BedLine]:
-        """
-        Update primer names to v2 format in place.
+        """Updates primer names to v2 format in place.
+
+        Converts all primer names in the provided BedLine objects to the v2 format
+        (prefix_number_DIRECTION_index). Groups primers by chromosome and amplicon
+        number, then updates each group.
+
+        Args:
+            bedlines: A list of BedLine objects to update.
+
+        Returns:
+            list[BedLine]: The updated list of BedLine objects with v2 format names.
+
+        Examples:
+            >>> from primalbedtools.bedfiles import BedLine, BedFileModifier
+            >>> bedlines = [BedLine(...)]  # List of BedLine objects
+            >>> updated = BedFileModifier.update_primernames(bedlines)
         """
         return update_primernames(bedlines)
+
+    @staticmethod
+    def downgrade_primernames(
+        bedlines: list[BedLine], merge_alts=False
+    ) -> list[BedLine]:
+        """Downgrades primer names to v1 format in place.
+
+        Converts all primer names in the provided BedLine objects to the v1 format
+        (prefix_number_DIRECTION_ALT). Groups primers by chromosome and amplicon
+        number, then updates each group.
+
+        Args:
+            bedlines: A list of BedLine objects to downgrade.
+
+        Returns:
+            list[BedLine]: The updated list of BedLine objects with v1 format names.
+        """
+        if merge_alts:
+            # Merge the alt primers
+            bedlines = merge_bedlines(bedlines)
+        # Downgrade the primer names
+        return downgrade_primernames(bedlines)
 
     @staticmethod
     def sort_bedlines(
         bedlines: list[BedLine],
     ) -> list[BedLine]:
-        """
-        Sorts the bedlines by chrom, amplicon number, direction, and sequence.
+        """Sorts the bedlines by chrom, amplicon number, direction, and sequence.
+
+        Groups BedLine objects into primer pairs, sorts those pairs by chromosome
+        and amplicon number, then returns a flattened list of the sorted BedLine objects.
+
+        Args:
+            bedlines: A list of BedLine objects to sort.
+
+        Returns:
+            list[BedLine]: A new list containing the sorted original BedLine objects.
+
+        Examples:
+            >>> from primalbedtools.bedfiles import BedLine, BedFileModifier
+            >>> bedlines = [BedLine(...)]  # List of BedLine objects
+            >>> sorted_lines = BedFileModifier.sort_bedlines(bedlines)
         """
         return sort_bedlines(bedlines)
 
@@ -704,7 +924,24 @@ class BedFileModifier:
     def merge_bedlines(
         bedlines: list[BedLine],
     ) -> list[BedLine]:
-        """
-        Merges bedlines with the same chrom, amplicon number and direction.
+        """Merges bedlines with the same chrom, amplicon number and direction.
+
+        Groups BedLine objects into primer pairs, then for each forward and reverse
+        group, creates a merged BedLine with:
+        - The earliest start position
+        - The latest end position
+        - The longest sequence
+        - The amplicon prefix, number, and pool from the first BedLine
+
+        Args:
+            bedlines: A list of BedLine objects to merge.
+
+        Returns:
+            list[BedLine]: A new list containing new merged BedLine objects.
+
+        Examples:
+            >>> from primalbedtools.bedfiles import BedLine, BedFileModifier
+            >>> bedlines = [BedLine(...)]  # List of BedLine objects
+            >>> merged_lines = BedFileModifier.merge_bedlines(bedlines)
         """
         return merge_bedlines(bedlines)

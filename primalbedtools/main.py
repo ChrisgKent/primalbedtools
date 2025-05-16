@@ -1,11 +1,8 @@
 import argparse
 
 from primalbedtools.bedfiles import (
+    BedFileModifier,
     BedLineParser,
-    downgrade_primernames,
-    merge_bedlines,
-    sort_bedlines,
-    update_primernames,
 )
 from primalbedtools.fasta import read_fasta
 from primalbedtools.primerpairs import create_primerpairs
@@ -69,11 +66,11 @@ def main():
     validate_parser.add_argument("fasta", type=str, help="Input reference file")
 
     # legacy parser
-    legacy_parser = subparsers.add_parser(
-        "legacy", help="Downgrade a bed file to an older version"
+    downgrade_parser = subparsers.add_parser(
+        "downgrade", help="Downgrade a bed file to an older version"
     )
-    legacy_parser.add_argument("bed", type=str, help="Input BED file")
-    legacy_parser.add_argument(
+    downgrade_parser.add_argument("bed", type=str, help="Input BED file")
+    downgrade_parser.add_argument(
         "--merge-alts",
         help="Should alt primers be merged?",
         default=False,
@@ -89,9 +86,9 @@ def main():
         msa = read_fasta(args.msa)
         bedlines = remap(args.from_id, args.to_id, bedlines, msa)
     elif args.subparser_name == "sort":
-        bedlines = sort_bedlines(bedlines)
+        bedlines = BedFileModifier.sort_bedlines(bedlines)
     elif args.subparser_name == "update":
-        bedlines = update_primernames(bedlines)
+        bedlines = BedFileModifier.update_primernames(bedlines)
     elif args.subparser_name == "amplicon":
         primerpairs = create_primerpairs(bedlines)
 
@@ -103,7 +100,7 @@ def main():
                 print(primerpair.to_amplicon_str())
         exit(0)  # Exit early
     elif args.subparser_name == "merge":
-        bedlines = merge_bedlines(bedlines)
+        bedlines = BedFileModifier.merge_bedlines(bedlines)
     elif args.subparser_name == "fasta":
         for line in bedlines:
             print(line.to_fasta(), end="")
@@ -117,11 +114,11 @@ def main():
         validate(bedpath=args.bed, refpath=args.fasta)
         exit(0)  # early exit
 
-    elif args.subparser_name == "legacy":
+    elif args.subparser_name == "downgrade":
         # merge primers if asked
-        if args.merge_alts:
-            bedlines = merge_bedlines(bedlines)
-        bedlines = downgrade_primernames(bedlines=bedlines)
+        bedlines = BedFileModifier.downgrade_primernames(
+            bedlines=bedlines, merge_alts=args.merge_alts
+        )
         _headers = []  # remove headers
     else:
         parser.print_help()

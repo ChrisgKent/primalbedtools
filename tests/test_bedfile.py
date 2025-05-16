@@ -12,6 +12,7 @@ from primalbedtools.bedfiles import (
     downgrade_primernames,
     group_by_amplicon_number,
     group_by_chrom,
+    group_by_pool,
     group_by_strand,
     merge_bedlines,
     read_bedfile,
@@ -504,7 +505,7 @@ class TestBedLine(unittest.TestCase):
 
         # Invalid primer_suffix (wrong object)
         with self.assertRaises(ValueError) as context:
-            bedline.primer_suffix = []
+            bedline.primer_suffix = []  # type: ignore
         self.assertIn("Invalid primer_suffix", str(context.exception))
 
         # Invalid primer_suffix (wrong object)
@@ -682,6 +683,40 @@ class TestGroupByChrom(unittest.TestCase):
         grouped = group_by_chrom(bedlines)
         self.assertEqual(len(grouped), 1)
         self.assertEqual(len(grouped["MN908947.3"]), 10)
+
+
+class TestGroupByPool(unittest.TestCase):
+    def test_group_by_pool(self):
+        bedline1 = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        bedline2 = BedLine(
+            chrom="chr1",
+            start=150,
+            end=250,
+            primername="scheme_1_LEFT",
+            pool=2,
+            strand="+",
+            sequence="ACGT",
+        )
+
+        grouped = group_by_pool([bedline1, bedline2])
+        self.assertEqual(len(grouped), 2)
+
+        # Check for correct pools
+        self.assertEqual(grouped.keys(), {1, 2})
+
+        # Change bedline1 pool to 2
+        bedline1.pool = 20
+
+        grouped = group_by_pool([bedline1, bedline2])
+        self.assertEqual(grouped.keys(), {2, 20})
 
 
 class TestGroupByAmpliconNumber(unittest.TestCase):
