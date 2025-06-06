@@ -10,14 +10,15 @@ from primalbedtools.bedfiles import (
     create_bedfile_str,
     create_bedline,
     downgrade_primernames,
+    expand_bedlines,
     group_by_amplicon_number,
     group_by_chrom,
     group_by_pool,
     group_by_strand,
+    lr_string_to_strand_char,
     merge_bedlines,
     read_bedfile,
     sort_bedlines,
-    string_to_strand_char,
     update_primernames,
     version_primername,
     write_bedfile,
@@ -31,12 +32,12 @@ TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "test.weights.bed"
 class TestValidationFuncs(unittest.TestCase):
     def test_string_to_strand_char(self):
         # Check expected
-        self.assertEqual(string_to_strand_char("LEFT"), "+")
-        self.assertEqual(string_to_strand_char("RIGHT"), "-")
+        self.assertEqual(lr_string_to_strand_char("LEFT"), "+")
+        self.assertEqual(lr_string_to_strand_char("RIGHT"), "-")
 
         # Check unexpected
         with self.assertRaises(ValueError):
-            string_to_strand_char("")
+            lr_string_to_strand_char("")
 
 
 class TestBedLine(unittest.TestCase):
@@ -51,6 +52,21 @@ class TestBedLine(unittest.TestCase):
             sequence="ACGT",
         )
         return super().setUp()
+
+    def test_create_bedline_with_strand_diff(self):
+        """
+        Test that
+        """
+        with self.assertRaises(ValueError):
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=200,
+                primername="scheme_1_LEFT",
+                pool=1,
+                strand="-",
+                sequence="ACGT",
+            )
 
     def test_bedline_create(self):
         bedline = BedLine(
@@ -1030,6 +1046,51 @@ class TestModifyBedLines(unittest.TestCase):
     def test_merge_bedlines_empty(self):
         merged_bedlines = merge_bedlines([])
         self.assertEqual(len(merged_bedlines), 0)
+
+    def test_expand_bedlines(self):
+        bedlines = [
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=120,
+                primername="test_1_LEFT_1",
+                pool=1,
+                strand="+",
+                sequence="ACNT",
+            ),
+            BedLine(
+                chrom="chr1",
+                start=110,
+                end=130,
+                primername="test_1_RIGHT_1",
+                pool=1,
+                strand="-",
+                sequence="AYGT",
+            ),
+            BedLine(
+                chrom="chr1",
+                start=110,
+                end=130,
+                primername="test_2_LEFT_1",
+                pool=1,
+                strand="+",
+                sequence="ACTGATCGAC",
+            ),
+        ]
+        expected_names = [
+            "test_1_LEFT_1",
+            "test_1_LEFT_2",
+            "test_1_LEFT_3",
+            "test_1_LEFT_4",
+            "test_1_RIGHT_1",
+            "test_1_RIGHT_2",
+            "test_2_LEFT_1",
+        ]
+        bedlines = expand_bedlines(bedlines)
+
+        primer_names = [bl.primername for bl in bedlines]
+
+        self.assertEqual(expected_names, primer_names)
 
 
 if __name__ == "__main__":

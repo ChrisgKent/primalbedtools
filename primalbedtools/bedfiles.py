@@ -4,7 +4,7 @@ import re
 import typing
 from typing import Union
 
-from primalbedtools.utils import rc_seq
+from primalbedtools.utils import expand_ambiguous_bases, rc_seq
 
 # Regular expressions for primer names
 V1_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)(_ALT[0-9]*|_alt[0-9]*)*$"
@@ -54,9 +54,9 @@ class StrandEnum(enum.Enum):
     REVERSE = "-"
 
 
-def string_to_strand_char(s: str) -> str:
+def lr_string_to_strand_char(s: str) -> str:
     """
-    Convert a string to a StrandEnum.
+    Convert a LEFT/RIGHT string to a StrandEnum.
     """
     parsed_strand = s.upper().strip()
 
@@ -147,7 +147,14 @@ class BedLine:
         self.chrom = chrom
         self.start = start
         self.end = end
+        # Check primername-strand + strand match
         self.primername = primername
+
+        if strand != self.strand:
+            raise ValueError(
+                f"primername ({primername}) implies strand ({self.strand}), which is different to provided ({strand})"
+            )
+
         self.pool = pool
         self.strand = strand
         self.sequence = sequence
@@ -297,7 +304,7 @@ class BedLine:
         self.amplicon_prefix = parts[0]
         self.amplicon_number = int(parts[1])
 
-        self.strand = string_to_strand_char(parts[2])
+        self.strand = lr_string_to_strand_char(parts[2])
 
         # Try to parse the primer_suffix
         try:
@@ -790,6 +797,15 @@ def sort_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
     """
     primerpairs = group_primer_pairs(bedlines)
     primerpairs.sort(key=lambda x: (x[0][0].chrom, x[0][0].amplicon_number))
+
+    for fps, rps in primerpairs:
+        fps.sort(
+            key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
+        )
+        rps.sort(
+            key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
+        )
+
     return [
         bedline
         for fbedlines, rbedlines in primerpairs
@@ -843,6 +859,32 @@ def merge_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
                 )
             )
     return merged_bedlines
+
+
+def expand_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
+    """
+    Expands ambiguous bases in the primer sequences to all possible combinations.
+    """
+    expanded_bedlines = []
+
+    for bedline in bedlines:
+        for expand_seq in expand_ambiguous_bases(bedline.sequence):
+            expanded_bedlines.append(
+                # Create a bunch of bedlines with the same name
+                BedLine(
+                    chrom=bedline.chrom,
+                    start=bedline.start,
+                    end=bedline.end,
+                    primername=bedline.primername,
+                    pool=bedline.pool,
+                    strand=bedline.strand,
+                    sequence=expand_seq,
+                    weight=bedline.weight,
+                )
+            )
+    # update the bedfile names
+    expanded_bedlines = update_primernames(expanded_bedlines)
+    return expanded_bedlines
 
 
 class BedFileModifier:
