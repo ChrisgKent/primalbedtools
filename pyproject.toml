@@ -1,30 +1,32 @@
-[tool.poetry]
+[project]
 name = "primalbedtools"
 version = "0.8.1"
 description = "A collection of tools for working with primer.bed files"
-authors = ["ChrisKent <chrisgkent@gmail.com>"]
+authors = [{ name = "ChrisKent", email = "chrisgkent@gmail.com" }]
+requires-python = "~=3.9"
 readme = "README.md"
-repository = "https://github.com/ChrisgKent/primalbedtools"
 license = "MPL-2.0"
 
-[tool.poetry.dependencies]
-python = "^3.9"
+[project.urls]
+Repository = "https://github.com/ChrisgKent/primalbedtools"
 
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.5.5"
-pre-commit = "^3.7.1"
-coverage = "^7.8.0"
-pytest = "^8.3.5"
-mkdocs = "^1.6.1"
-mkdocstrings = {extras = ["python"], version = "^0.29.1"}
-mkdocs-material = "^9.6.14"
+[project.scripts]
+primalbedtools = "primalbedtools.main:main"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=3.7.1,<4",
+    "coverage>=7.8.0,<8",
+    "pytest>=8.3.5,<9",
+    "mkdocs>=1.6.1,<2",
+    "mkdocstrings[python]>=0.29.1,<0.30",
+    "mkdocs-material>=9.6.14,<10",
+    "ruff>=0.11.13",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.scripts]
-primalbedtools = "primalbedtools.main:main"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.ruff.lint]
 select = [
