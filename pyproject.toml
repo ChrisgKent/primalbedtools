@@ -1,6 +1,6 @@
 [project]
 name = "primalbedtools"
-version = "0.8.1"
+version = "0.9"
 description = "A collection of tools for working with primer.bed files"
 authors = [{ name = "ChrisKent", email = "chrisgkent@gmail.com" }]
 requires-python = "~=3.9"
