@@ -276,7 +276,7 @@ class BedLine:
     @property
     def amplicon_name(self) -> str:
         """Return the amplicon name of the primer"""
-        return f"{self.amplicon_number}_{self.amplicon_number}"
+        return f"{self.amplicon_prefix}_{self.amplicon_number}"
 
     @amplicon_number.setter
     def amplicon_number(self, v):
@@ -449,7 +449,8 @@ class BedLine:
 
         # Parse the new dict
         parsed_dict: dict[str, Union[str, float]] = {
-            str(k).strip(): str(v).strip() for k, v in new_dict.items()
+            strip_all_white_space(str(k)): strip_all_white_space(str(v))
+            for k, v in new_dict.items()
         }
 
         self._attributes = parsed_dict

@@ -225,6 +225,7 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(bedline.length, 100)
         self.assertEqual(bedline.amplicon_number, 1)
         self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(bedline.amplicon_name, "scheme_1")
         self.assertEqual(bedline.ipool, 0)
         self.assertEqual(
             bedline.to_bed(),
@@ -693,6 +694,27 @@ class TestBedLine(unittest.TestCase):
         # Set None
         bedline.primer_suffix = None
         self.assertIsNone(bedline.primer_suffix)
+
+    def test_attribute_setter(self):
+        bedline = self.bedline
+
+        # Set nonsense
+        with self.assertRaises(ValueError) as context:
+            bedline.attributes = []  # type: ignore
+        self.assertIn("Invalid primer attributes.", str(context.exception))
+
+        # Set empty dict
+        bedline.attributes = {}
+        self.assertEqual(bedline.attributes, {})
+        # Ensure empty dict is not written to bed
+        self.assertEqual(
+            bedline.to_bed(), "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
+        )
+
+        # Set string. Test pw is converted to float
+        bedline.attributes = "pw=1;ps=2"
+        assert bedline.attributes is not None
+        self.assertDictEqual(bedline.attributes, {"pw": 1.0, "ps": "2"})  # type: ignore
 
 
 class TestCreateBedline(unittest.TestCase):
