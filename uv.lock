@@ -596,7 +596,7 @@ wheels = [
 
 [[package]]
 name = "primalbedtools"
-version = "0.9"
+version = "0.10.0"
 source = { editable = "." }
 
 [package.dev-dependencies]

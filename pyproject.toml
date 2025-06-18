@@ -1,11 +1,11 @@
 [project]
 name = "primalbedtools"
-version = "0.9"
+version = "0.10.0"
 description = "A collection of tools for working with primer.bed files"
 authors = [{ name = "ChrisKent", email = "chrisgkent@gmail.com" }]
 requires-python = "~=3.9"
 readme = "README.md"
-license = "MPL-2.0"
+license = "MIT"
 
 [project.urls]
 Repository = "https://github.com/ChrisgKent/primalbedtools"
