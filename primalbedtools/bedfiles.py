@@ -2,9 +2,9 @@ import enum
 import pathlib
 import re
 import typing
-from typing import Union
+from typing import Optional, Union
 
-from primalbedtools.utils import expand_ambiguous_bases, rc_seq
+from primalbedtools.utils import expand_ambiguous_bases, rc_seq, strip_all_white_space
 
 # Regular expressions for primer names
 V1_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)(_ALT[0-9]*|_alt[0-9]*)*$"
@@ -14,6 +14,8 @@ AMPLICON_PREFIX = r"^[a-zA-Z0-9\-]+$"  # any alphanumeric or hyphen
 V1_PRIMER_SUFFIX = r"^(ALT[0-9]*|alt[0-9]*)*$"
 
 CHROM_REGEX = r"^[a-zA-Z0-9_.]+$"
+
+PRIMER_WEIGHT_KEY = "pw"
 
 
 class PrimerNameVersion(enum.Enum):
@@ -47,6 +49,65 @@ def create_primername(amplicon_prefix, amplicon_number, direction, primer_suffix
     """
     values = [amplicon_prefix, str(amplicon_number), direction, primer_suffix]
     return "_".join([str(x) for x in values if x is not None])
+
+
+def parse_primer_attributes_str(v: str) -> Optional[dict[str, str]]:
+    new_dict = {}
+
+    white_space_removed = strip_all_white_space(v)
+    if not white_space_removed:
+        return None
+
+    # Check if old style weight is being provided.
+    try:
+        float(white_space_removed)
+        # Parse old weight into a dict
+        white_space_removed = f"{PRIMER_WEIGHT_KEY}={white_space_removed}"
+    except ValueError:
+        pass
+
+    white_space_removed_kv = white_space_removed.split(";")
+    if len(white_space_removed_kv) < 1:
+        return None
+
+    for kv in white_space_removed_kv:
+        # Skip empty lines
+        if not kv:
+            continue
+
+        try:
+            k, v = kv.split("=")
+        except ValueError:
+            raise ValueError(
+                f"Invalid PrimerAttributes: ({kv}). Must be in form k=v"
+            ) from None
+        # Check empty values
+        if not k or not v:
+            raise ValueError(f"Malformed k=v pair: ({kv})")
+        # check dupe
+        if k in new_dict:
+            raise ValueError(f"Duplicate PrimerAttributes Key: ({k})")
+
+        new_dict[k] = v
+
+    # Only return a dict with values
+    return new_dict if new_dict else None
+
+
+def create_primer_attributes_str(
+    primer_attributes: Union[dict[str, Union[str, float]], dict[str, str], None],
+) -> Optional[str]:
+    """
+    Parses the dict into the ';' separated str. Strips all whitespace
+
+    Returns None on empty dict or None
+    """
+    if primer_attributes is None or not primer_attributes:
+        return None
+    return ";".join(
+        f"{strip_all_white_space(k)}={strip_all_white_space(str(v))}"
+        for k, v in primer_attributes.items()
+    )
 
 
 class StrandEnum(enum.Enum):
@@ -84,8 +145,8 @@ class BedLine:
         primername (str): Name of the primer in either format v1 or v2
         pool (int): 1-based pool number (use ipool for 0-based pool number)
         strand (str): Strand of the primer ("+" for forward, "-" for reverse)
-        sequence (str): Sequence of the primer (automatically converted to uppercase)
-        weight (float, optional): Weight of the primer for rebalancing, default is None
+        sequence (str): Sequence of the primer
+        attributes (float, dict): Weight of the primer for rebalancing, default is None
 
     Properties:
         length (int): Length of the primer (end - start)
@@ -126,7 +187,10 @@ class BedLine:
     _pool: int
     _strand: str
     _sequence: str
-    _weight: Union[float, None]
+
+    # primerAttributes
+    _attributes: Optional[dict[str, Union[str, float]]]
+    _weight: Optional[float]
 
     # primernames components
     _amplicon_prefix: str
@@ -135,14 +199,14 @@ class BedLine:
 
     def __init__(
         self,
-        chrom,
-        start,
-        end,
-        primername,
-        pool,
-        strand,
-        sequence,
-        weight=None,
+        chrom: str,
+        start: Union[int, str],
+        end: Union[int, str],
+        primername: str,
+        pool: Union[int, str],
+        strand: str,
+        sequence: str,
+        attributes: Union[dict[str, Union[str, float]], str, None, float] = None,
     ) -> None:
         self.chrom = chrom
         self.start = start
@@ -158,7 +222,9 @@ class BedLine:
         self.pool = pool
         self.strand = strand
         self.sequence = sequence
-        self.weight = weight
+
+        # Set attributes
+        self.attributes = attributes  # Ensure the type matches the expected UnionType
 
     @property
     def chrom(self):
@@ -357,17 +423,57 @@ class BedLine:
         self._sequence = v.upper()
 
     @property
+    def attributes(self):
+        """Returns the primer attributes"""
+        return self._attributes
+
+    @attributes.setter
+    def attributes(
+        self, v: Optional[Union[dict[str, Union[str, float]], str, float]]
+    ) -> None:
+        # Parse string
+        if isinstance(v, str):
+            new_dict = parse_primer_attributes_str(v)
+        # parse dict
+        elif isinstance(v, dict):
+            new_dict = v
+        elif v is None:
+            self._attributes = None
+            return
+        else:
+            raise ValueError(f"Invalid primer attributes. Got ({v})")
+
+        if new_dict is None:
+            self._attributes = None
+            return
+
+        # Parse the new dict
+        parsed_dict: dict[str, Union[str, float]] = {
+            str(k).strip(): str(v).strip() for k, v in new_dict.items()
+        }
+
+        self._attributes = parsed_dict
+
+        # Call to primerweight setter to validate
+        if PRIMER_WEIGHT_KEY in parsed_dict:
+            self.weight = parsed_dict[PRIMER_WEIGHT_KEY]
+
+    @property
     def weight(self):
         """Return the weight of the primer"""
-        return self._weight
+        if self._attributes is None:
+            return None
+        return self._attributes.get(PRIMER_WEIGHT_KEY)
 
     @weight.setter
     def weight(self, v: Union[float, str, int, None]):
         # Catch Empty and None
         if v is None or v == "":
-            self._weight = None
+            if self._attributes is None:
+                return
+            # remove pw from the attributes
+            self._attributes.pop(PRIMER_WEIGHT_KEY, None)
             return
-
         try:
             v = float(v)
         except (ValueError, TypeError) as e:
@@ -376,7 +482,11 @@ class BedLine:
             ) from e
         if v < 0:
             raise ValueError(f"weight must be greater than or equal to 0. Got ({v})")
-        self._weight = v
+
+        # Set primerWeights as pw in self._attributes
+        if self._attributes is None:
+            self._attributes = {}
+        self._attributes[PRIMER_WEIGHT_KEY] = v
 
     # calculated properties
     @property
@@ -400,9 +510,14 @@ class BedLine:
 
     def to_bed(self) -> str:
         """Convert the BedLine object to a BED formatted string."""
-        # If a weight is provided print. Else print empty string
-        weight_str = "" if self.weight is None else f"\t{self.weight}"
-        return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}{weight_str}\n"
+        # If a attributes is provided print. Else print empty string
+
+        attribute_str = create_primer_attributes_str(self.attributes)
+        if attribute_str is None:
+            attribute_str = ""
+        else:
+            attribute_str = "\t" + attribute_str
+        return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}{attribute_str}\n"
 
     def to_fasta(self, rc=False) -> str:
         """Convert the BedLine object to a FASTA formatted string."""
@@ -536,9 +651,9 @@ def create_bedline(bedline: list[str]) -> BedLine:
     """
     try:
         if len(bedline) < 8:
-            weight = None
+            attributes = None
         else:
-            weight = float(bedline[7])
+            attributes = bedline[7]
 
         return BedLine(
             chrom=bedline[0],
@@ -548,7 +663,7 @@ def create_bedline(bedline: list[str]) -> BedLine:
             pool=bedline[4],
             strand=bedline[5],
             sequence=bedline[6],
-            weight=weight,
+            attributes=attributes,
         )
     except IndexError as a:
         raise IndexError(
@@ -776,14 +891,14 @@ def downgrade_primernames(bedlines: list[BedLine]) -> list[BedLine]:
         # Sort the bedlines by sequence
         fbedlines.sort(key=lambda x: x.sequence)
         for i, bedline in enumerate(fbedlines, start=1):
-            alt = "" if i == 1 else f"_alt{i-1}"
+            alt = "" if i == 1 else f"_alt{i - 1}"
             bedline.primername = (
                 f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_LEFT{alt}"
             )
 
         rbedlines.sort(key=lambda x: x.sequence)
         for i, bedline in enumerate(rbedlines, start=1):
-            alt = "" if i == 1 else f"_alt{i-1}"
+            alt = "" if i == 1 else f"_alt{i - 1}"
             bedline.primername = (
                 f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_RIGHT{alt}"
             )
@@ -879,7 +994,7 @@ def expand_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
                     pool=bedline.pool,
                     strand=bedline.strand,
                     sequence=expand_seq,
-                    weight=bedline.weight,
+                    attributes=bedline.attributes,
                 )
             )
     # update the bedfile names

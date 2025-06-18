@@ -4,11 +4,13 @@ import random
 import unittest
 
 from primalbedtools.bedfiles import (
+    PRIMER_WEIGHT_KEY,
     BedLine,
     BedLineParser,
     PrimerNameVersion,
     create_bedfile_str,
     create_bedline,
+    create_primer_attributes_str,
     downgrade_primernames,
     expand_bedlines,
     group_by_amplicon_number,
@@ -17,6 +19,7 @@ from primalbedtools.bedfiles import (
     group_by_strand,
     lr_string_to_strand_char,
     merge_bedlines,
+    parse_primer_attributes_str,
     read_bedfile,
     sort_bedlines,
     update_primernames,
@@ -38,6 +41,105 @@ class TestValidationFuncs(unittest.TestCase):
         # Check unexpected
         with self.assertRaises(ValueError):
             lr_string_to_strand_char("")
+
+
+class TestAttributesFuncs(unittest.TestCase):
+    def test_parse_primer_attributes_str_valid(self):
+        # Valid str simple
+        primer_attr = "pw=1"
+        result = parse_primer_attributes_str(primer_attr)
+        assert result is not None
+        self.assertDictEqual(result, {PRIMER_WEIGHT_KEY: "1"})
+
+        # valid multi
+        primer_attr = "pw=1;ps=100;s=1"
+        result = parse_primer_attributes_str(primer_attr)
+        assert result is not None
+        self.assertDictEqual(result, {"s": "1", PRIMER_WEIGHT_KEY: "1", "ps": "100"})
+
+        # semi valid multi
+        primer_attr = ";pw=1;ps=100;s=1;"
+        result = parse_primer_attributes_str(primer_attr)
+        assert result is not None
+        self.assertDictEqual(result, {"s": "1", PRIMER_WEIGHT_KEY: "1", "ps": "100"})
+
+        # Test whitespace + semi valid
+        primer_attr = "; pw= 1;p s=100;s=1;"
+        result = parse_primer_attributes_str(primer_attr)
+        assert result is not None
+        self.assertDictEqual(result, {"s": "1", PRIMER_WEIGHT_KEY: "1", "ps": "100"})
+
+        # Test legacy weight
+        primer_attr = "1.0"
+        result = parse_primer_attributes_str(primer_attr)
+        assert result is not None
+        self.assertDictEqual(result, {PRIMER_WEIGHT_KEY: "1.0"})
+
+    def test_parse_primer_attributes_str_invalid(self):
+        # error ;
+        primer_attr = ";"
+        result = parse_primer_attributes_str(primer_attr)
+        self.assertIsNone(result)
+
+        # empty
+        primer_attr = " "
+        result = parse_primer_attributes_str(primer_attr)
+        self.assertIsNone(result)
+
+        # error malformed
+        primer_attr = "pw="
+        with self.assertRaises(ValueError) as context:
+            parse_primer_attributes_str(primer_attr)
+        self.assertIn("Malformed k=v pair:", str(context.exception))
+
+        # error wrong form
+        primer_attr = "pw1"
+        with self.assertRaises(ValueError) as context:
+            parse_primer_attributes_str(primer_attr)
+        self.assertIn("Invalid PrimerAttributes:", str(context.exception))
+
+        # error duplicate keys
+        primer_attr = "pw=1;pw=2"
+        with self.assertRaises(ValueError) as context:
+            parse_primer_attributes_str(primer_attr)
+        self.assertIn("Duplicate PrimerAttributes Key:", str(context.exception))
+
+    def test_create_primer_attributes_str(self):
+        # None case
+        self.assertIsNone(create_primer_attributes_str(None))
+        # empty dict
+        self.assertIsNone(create_primer_attributes_str({}))
+        # test valid single
+        attr_str = create_primer_attributes_str({PRIMER_WEIGHT_KEY: "1"})
+        self.assertEqual(attr_str, "pw=1")
+        # test valid multi
+        attr_str = create_primer_attributes_str({PRIMER_WEIGHT_KEY: "1", "ps": "As"})
+        self.assertEqual(attr_str, "pw=1;ps=As")
+        # test valid + sort order
+        attr_str = create_primer_attributes_str(
+            {"a": 100, PRIMER_WEIGHT_KEY: "1", "ps": "As"}
+        )
+        self.assertEqual(attr_str, "a=100;pw=1;ps=As")
+
+        # Test strip whitespace
+        attr_str = create_primer_attributes_str(
+            {"a": 100, PRIMER_WEIGHT_KEY: "1", "ps": "A   s"}
+        )
+        self.assertEqual(attr_str, "a=100;pw=1;ps=As")
+
+    def test_attributes_roundtrip(self):
+        # Simple
+        primer_attr = "pw=1"
+        self.assertEqual(
+            create_primer_attributes_str(parse_primer_attributes_str(primer_attr)),
+            primer_attr,
+        )
+        # multi
+        primer_attr = "a=100;pw=1;ps=As"
+        self.assertEqual(
+            create_primer_attributes_str(parse_primer_attributes_str(primer_attr)),
+            primer_attr,
+        )
 
 
 class TestBedLine(unittest.TestCase):
@@ -107,7 +209,7 @@ class TestBedLine(unittest.TestCase):
             pool=1,
             strand="+",
             sequence="ACGT",
-            weight="",
+            attributes="",
         )
         # Provides values
         self.assertEqual(bedline.chrom, "chr1")
@@ -138,7 +240,7 @@ class TestBedLine(unittest.TestCase):
             pool=1,
             strand="+",
             sequence="ACGT",
-            weight=1.0,
+            attributes={PRIMER_WEIGHT_KEY: 1},
         )
         # Provides values
         self.assertEqual(bedline.chrom, "chr1")
@@ -157,7 +259,59 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(bedline.ipool, 0)
         self.assertEqual(
             bedline.to_bed(),
-            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t1.0\n",
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0\n",
+        )
+
+    def test_bedline_create_attr(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+            attributes="pw=1;ps=2;dfa=1000",
+        )
+        # Provides values
+        self.assertEqual(bedline.chrom, "chr1")
+        self.assertEqual(bedline.start, 100)
+        self.assertEqual(bedline.end, 200)
+        self.assertEqual(bedline.primername, "scheme_1_LEFT")
+        self.assertEqual(bedline.pool, 1)
+        self.assertEqual(bedline.strand, "+")
+        self.assertEqual(bedline.sequence, "ACGT")
+        self.assertEqual(bedline.weight, 1.0)
+        assert bedline.attributes is not None
+
+        # Check attr
+        self.assertEqual(bedline.attributes["pw"], 1)
+        self.assertEqual(bedline.attributes["ps"], "2")
+        self.assertEqual(bedline.attributes["dfa"], "1000")
+
+        # Derived values
+        self.assertEqual(bedline.length, 100)
+        self.assertEqual(bedline.amplicon_number, 1)
+        self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(bedline.ipool, 0)
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0;ps=2;dfa=1000\n",
+        )
+
+        # Change an attr
+        bedline.attributes["test"] = 100
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0;ps=2;dfa=1000;test=100\n",
+        )
+
+        # Remove pw
+        bedline.attributes.pop("pw")
+        self.assertIsNone(bedline.weight)
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tps=2;dfa=1000;test=100\n",
         )
 
     def test_invalid_bedline(self):
@@ -193,7 +347,7 @@ class TestBedLine(unittest.TestCase):
                 pool=1,
                 strand="+",
                 sequence="ACGT",
-                weight=-1.0,
+                attributes={PRIMER_WEIGHT_KEY: -1.0},
             )
         # str weight should raise ValueError
         with self.assertRaises(ValueError):
@@ -205,12 +359,12 @@ class TestBedLine(unittest.TestCase):
                 pool=1,
                 strand="+",
                 sequence="ACGT",
-                weight="A",
+                attributes={PRIMER_WEIGHT_KEY: "A"},
             )
 
     def test_bedline_parse_params(self):
         bedline = BedLine(
-            chrom=1,  # int chrom
+            chrom=1,  # int chrom # type: ignore
             start="100",  # str start
             end="200",  # str end
             primername="scheme_1_LEFT",
@@ -273,7 +427,7 @@ class TestBedLine(unittest.TestCase):
         bedline.weight = 1.0
         self.assertEqual(
             bedline.to_bed(),
-            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t1.0\n",
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0\n",
         )
 
     def test_chrom_set(self):
@@ -642,7 +796,7 @@ class TestWriteBedfile(unittest.TestCase):
         with open(self.output_bed_path) as f:
             content = f.read()
         self.assertEqual(
-            content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t1.0\n"
+            content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0\n"
         )
 
     def tearDown(self) -> None:
