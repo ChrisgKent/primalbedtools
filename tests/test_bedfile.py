@@ -716,6 +716,11 @@ class TestBedLine(unittest.TestCase):
         assert bedline.attributes is not None
         self.assertDictEqual(bedline.attributes, {"pw": 1.0, "ps": "2"})  # type: ignore
 
+        # Set an invalid pw
+        with self.assertRaises(ValueError) as context:
+            bedline.attributes = "pw=A;"
+        self.assertIn("weight must be a float", str(context.exception))
+
 
 class TestCreateBedline(unittest.TestCase):
     def test_create_bedline(self):

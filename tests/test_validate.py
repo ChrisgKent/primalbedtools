@@ -2,7 +2,12 @@ import unittest
 
 from primalbedtools.bedfiles import BedLine
 from primalbedtools.primerpairs import PrimerPair
-from primalbedtools.validate import do_pp_ol, validate_primerbed, validate_ref_and_bed
+from primalbedtools.validate import (
+    do_pp_ol,
+    validate,
+    validate_primerbed,
+    validate_ref_and_bed,
+)
 
 
 class TestValidate(unittest.TestCase):
@@ -193,6 +198,10 @@ class TestValidate(unittest.TestCase):
         self.assertIn(
             "chroms in primer.bed are not in reference.fasta", str(cm.exception)
         )
+
+    def test_validate(self):
+        """Test validate with files"""
+        validate("tests/inputs/primer.bed", "tests/inputs/reference.fasta")
 
 
 if __name__ == "__main__":

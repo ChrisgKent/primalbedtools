@@ -146,7 +146,7 @@ class BedLine:
         pool (int): 1-based pool number (use ipool for 0-based pool number)
         strand (str): Strand of the primer ("+" for forward, "-" for reverse)
         sequence (str): Sequence of the primer
-        attributes (float, dict): Weight of the primer for rebalancing, default is None
+        attributes (dict[str,str|float], None): Dict of primer attributes (e.g., primerweights (pw) for rebalancing).
 
     Properties:
         length (int): Length of the primer (end - start)
@@ -455,13 +455,13 @@ class BedLine:
 
         self._attributes = parsed_dict
 
-        # Call to primerweight setter to validate
+        # Call to primer weight setter to validate
         if PRIMER_WEIGHT_KEY in parsed_dict:
             self.weight = parsed_dict[PRIMER_WEIGHT_KEY]
 
     @property
     def weight(self):
-        """Return the weight of the primer"""
+        """Return the weight of the primer from the attributes dict"""
         if self._attributes is None:
             return None
         return self._attributes.get(PRIMER_WEIGHT_KEY)
