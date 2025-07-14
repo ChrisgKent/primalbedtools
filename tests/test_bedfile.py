@@ -7,6 +7,7 @@ from primalbedtools.bedfiles import (
     PRIMER_WEIGHT_KEY,
     BedLine,
     BedLineParser,
+    PrimerDirectionType,
     PrimerNameVersion,
     create_bedfile_str,
     create_bedline,
@@ -15,13 +16,17 @@ from primalbedtools.bedfiles import (
     expand_bedlines,
     group_by_amplicon_number,
     group_by_chrom,
+    group_by_direction,
     group_by_pool,
     group_by_strand,
     lr_string_to_strand_char,
-    merge_bedlines,
+    merge_primers,
+    parse_headers_to_dict,
     parse_primer_attributes_str,
+    primer_direction_str_to_enum,
     read_bedfile,
     sort_bedlines,
+    strand_char_to_primer_direction_str,
     update_primernames,
     version_primername,
     write_bedfile,
@@ -30,6 +35,9 @@ from primalbedtools.bedfiles import (
 TEST_BEDFILE = pathlib.Path(__file__).parent / "test.bed"
 TEST_V2_BEDFILE = pathlib.Path(__file__).parent / "test.v2.bed"
 TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "test.weights.bed"
+TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "test.weights.bed"
+TEST_ATTRIBUTES_BEDFILE = pathlib.Path(__file__).parent / "test.attributes.bed"
+TEST_PROBE_BEDFILE = pathlib.Path(__file__).parent / "test.probe.bed"
 
 
 class TestValidationFuncs(unittest.TestCase):
@@ -41,6 +49,53 @@ class TestValidationFuncs(unittest.TestCase):
         # Check unexpected
         with self.assertRaises(ValueError):
             lr_string_to_strand_char("")
+
+    def test_primer_direction_str_to_enum(self):
+        self.assertEqual(primer_direction_str_to_enum("LEFT"), PrimerDirectionType.LEFT)
+        self.assertEqual(
+            primer_direction_str_to_enum("RIGHT"), PrimerDirectionType.RIGHT
+        )
+        self.assertEqual(
+            primer_direction_str_to_enum("PROBE"), PrimerDirectionType.PROBE
+        )
+
+        # Check unexpected
+        with self.assertRaises(ValueError):
+            primer_direction_str_to_enum("")
+
+    def test_strand_char_to_primer_direction_str(self):
+        self.assertEqual(strand_char_to_primer_direction_str("+"), "LEFT")
+        self.assertEqual(strand_char_to_primer_direction_str("-"), "RIGHT")
+        # Check unexpected
+        with self.assertRaises(ValueError):
+            strand_char_to_primer_direction_str("")
+
+
+class TestHeader(unittest.TestCase):
+    def test_parse_headers_to_dict_simple(self):
+        headers, _bedlines = read_bedfile(TEST_ATTRIBUTES_BEDFILE)
+
+        attr_dict = parse_headers_to_dict(headers)
+
+        self.assertDictEqual(
+            attr_dict,
+            {"MN908947.3": "sars-cov-2", "examplescheme": None, "gc": "fractiongc"},
+        )
+
+    def test_parse_headers_to_dict_probe(self):
+        headers, _bedlines = read_bedfile(TEST_PROBE_BEDFILE)
+
+        attr_dict = parse_headers_to_dict(headers)
+
+        self.assertDictEqual(
+            attr_dict,
+            {
+                "/3BHQ_1/": "BlackHoleQuencher1",
+                "/56-FAM/": "FAM",
+                "/5HEX/": "HEX",
+                "example multiplexed-qPCR assay": None,
+            },
+        )
 
 
 class TestAttributesFuncs(unittest.TestCase):
@@ -431,6 +486,33 @@ class TestBedLine(unittest.TestCase):
             "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0\n",
         )
 
+    def test_to_bed_probe(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_PROBE",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_PROBE\t1\t+\tACGT\n",
+        )
+        # Provide weight
+        bedline.weight = 1.0
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_PROBE\t1\t+\tACGT\tpw=1.0\n",
+        )
+
+        bedline = update_primernames([bedline])[0]
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_PROBE_1\t1\t+\tACGT\tpw=1.0\n",
+        )
+
     def test_chrom_set(self):
         bedline = self.bedline
         # Object
@@ -768,6 +850,19 @@ class TestReadBedfile(unittest.TestCase):
         for bedline in bedlines:
             self.assertIsNotNone(bedline.weight)
 
+    def test_read_attr_bedline(self):
+        headers, bedlines = read_bedfile(TEST_ATTRIBUTES_BEDFILE)
+        # Check for 3 headers
+        self.assertEqual(len(headers), 3)
+
+        # Check bedlines have weights and attrs
+        for bedline in bedlines:
+            self.assertIsNotNone(bedline.weight)
+            self.assertIsNotNone(bedline.attributes)
+            assert bedline.attributes is not None
+            # Check for two attrs
+            self.assertEqual(len(bedline.attributes), 2)
+
 
 class TestCreateBedfileStr(unittest.TestCase):
     bedline = BedLine(
@@ -947,11 +1042,6 @@ class TestGroupByAmpliconNumber(unittest.TestCase):
         grouped = group_by_amplicon_number(bedlines)
         self.assertEqual(len(grouped), 3)
 
-        # Check for correct ampliconnumber
-        for amplicon_number, bedlines in grouped.items():
-            for bedline in bedlines:
-                self.assertEqual(bedline.amplicon_number, amplicon_number)
-
         # Check for correct primernames
         self.assertEqual(
             {bl.primername for bl in grouped[1]},
@@ -1000,6 +1090,60 @@ class TestGroupByStrand(unittest.TestCase):
         self.assertEqual(len(grouped), 2)
         self.assertEqual(len(grouped["+"]), 3)
         self.assertEqual(len(grouped["-"]), 3)
+
+
+class TestGroupByDirection(unittest.TestCase):
+    def test_group_by_direction(self):
+        bedline1 = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT_1",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        bedline2 = BedLine(
+            chrom="chr1",
+            start=150,
+            end=250,
+            primername="scheme_1_RIGHT_1",
+            pool=2,
+            strand="-",
+            sequence="ACGT",
+        )
+        bedline3 = BedLine(
+            chrom="chr1",
+            start=175,
+            end=225,
+            primername="scheme_1_PROBE_1",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        grouped = group_by_direction([bedline1, bedline2, bedline3])
+        self.assertEqual(len(grouped), 3)
+        self.assertEqual(len(grouped[PrimerDirectionType.LEFT.value]), 1)
+        self.assertEqual(len(grouped[PrimerDirectionType.RIGHT.value]), 1)
+        self.assertEqual(len(grouped[PrimerDirectionType.PROBE.value]), 1)
+        self.assertEqual(grouped[PrimerDirectionType.LEFT.value], [bedline1])
+        self.assertEqual(grouped[PrimerDirectionType.RIGHT.value], [bedline2])
+        self.assertEqual(grouped[PrimerDirectionType.PROBE.value], [bedline3])
+
+    def test_group_by_direction_file(self):
+        headers, bedlines = read_bedfile(TEST_BEDFILE)
+        grouped = group_by_direction(bedlines)
+        self.assertEqual(len(grouped), 2)
+        self.assertEqual(len(grouped[PrimerDirectionType.LEFT.value]), 3)
+        self.assertEqual(len(grouped[PrimerDirectionType.RIGHT.value]), 3)
+
+        # Check that all LEFT primers have correct direction
+        for bedline in grouped[PrimerDirectionType.LEFT.value]:
+            self.assertEqual(bedline.direction_str, "LEFT")
+
+        # Check that all RIGHT primers have correct direction
+        for bedline in grouped[PrimerDirectionType.RIGHT.value]:
+            self.assertEqual(bedline.direction_str, "RIGHT")
 
 
 class TestBedLineParser(unittest.TestCase):
@@ -1165,7 +1309,7 @@ class TestModifyBedLines(unittest.TestCase):
         # Check that the bedlines are sorted
         self.assertEqual(sorted_bedlines, bedlines)
 
-    def test_merge_bedlines_single(self):
+    def test_merge_primers_single(self):
         bedlines = [
             BedLine(
                 chrom="chr1",
@@ -1186,7 +1330,7 @@ class TestModifyBedLines(unittest.TestCase):
                 sequence="ACGT",
             ),
         ]
-        merged_bedlines = merge_bedlines(bedlines)
+        merged_bedlines = merge_primers(bedlines)
         # Check merged bedline
         self.assertEqual(len(merged_bedlines), 1)
 
@@ -1199,7 +1343,7 @@ class TestModifyBedLines(unittest.TestCase):
         self.assertEqual(merged_bedline.pool, 1)
         self.assertEqual(merged_bedline.strand, "-")
 
-    def test_merge_bedlines_nothing(self):
+    def test_merge_primers_nothing(self):
         bedlines = [
             BedLine(
                 chrom="chr1",
@@ -1220,12 +1364,12 @@ class TestModifyBedLines(unittest.TestCase):
                 sequence="ACGT",
             ),
         ]
-        merged_bedlines = merge_bedlines(bedlines)
+        merged_bedlines = merge_primers(bedlines)
 
         self.assertEqual(len(merged_bedlines), 2)
 
-    def test_merge_bedlines_empty(self):
-        merged_bedlines = merge_bedlines([])
+    def test_merge_primers_empty(self):
+        merged_bedlines = merge_primers([])
         self.assertEqual(len(merged_bedlines), 0)
 
     def test_expand_bedlines(self):

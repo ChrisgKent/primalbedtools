@@ -7,10 +7,11 @@ from typing import Optional, Union
 from primalbedtools.utils import expand_ambiguous_bases, rc_seq, strip_all_white_space
 
 # Regular expressions for primer names
-V1_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)(_ALT[0-9]*|_alt[0-9]*)*$"
-V2_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)_[0-9]+$"
+V1_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT|PROBE)(_ALT[0-9]*|_alt[0-9]*)*$"
+V2_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT|PROBE)_[0-9]+$"
 
 AMPLICON_PREFIX = r"^[a-zA-Z0-9\-]+$"  # any alphanumeric or hyphen
+
 V1_PRIMER_SUFFIX = r"^(ALT[0-9]*|alt[0-9]*)*$"
 
 CHROM_REGEX = r"^[a-zA-Z0-9_.]+$"
@@ -22,6 +23,31 @@ class PrimerNameVersion(enum.Enum):
     INVALID = 0
     V1 = 1
     V2 = 2
+
+
+class PrimerDirectionType(enum.Enum):
+    LEFT = "LEFT"
+    RIGHT = "RIGHT"
+    PROBE = "PROBE"
+
+
+class StrandEnum(enum.Enum):
+    FORWARD = "+"
+    REVERSE = "-"
+
+
+def primer_direction_str_to_enum(s: str):
+    s = s.upper().strip()
+    if s == "LEFT":
+        return PrimerDirectionType.LEFT
+    elif s == "RIGHT":
+        return PrimerDirectionType.RIGHT
+    elif s == "PROBE":
+        return PrimerDirectionType.PROBE
+
+    raise ValueError(
+        f"unknown primer direction str ({s}). Should be ['RIGHT', 'LEFT', 'PROBE']"
+    )
 
 
 def version_primername(primername: str) -> PrimerNameVersion:
@@ -43,11 +69,40 @@ def check_amplicon_prefix(amplicon_prefix: str) -> bool:
     return bool(re.match(AMPLICON_PREFIX, amplicon_prefix))
 
 
-def create_primername(amplicon_prefix, amplicon_number, direction, primer_suffix):
+def parse_headers_to_dict(headers: list[str]) -> dict[str, str]:
+    """
+    parses the header strings into a dict.
+    - Removes the leading # and any padding white space.
+    - splits the header line on the first '=', with the key, value being the left, or right|None
+    """
+    attr_dict = {}
+
+    for header in headers:
+        header = header.rstrip().lstrip()  # remove lr whitespace
+
+        if header.startswith("#"):
+            header = header[1:].lstrip()  # Remove # and any padding
+
+        parts = header.split("=", 1)
+
+        if len(parts) == 1:
+            attr_dict[parts[0].rstrip()] = None
+        else:
+            attr_dict[parts[0].rstrip()] = parts[1]
+
+    return attr_dict
+
+
+def create_primername(
+    amplicon_prefix: str,
+    amplicon_number: int,
+    direction: PrimerDirectionType,
+    primer_suffix: Union[str, int, None],
+):
     """
     Creates an unvalidated primername string.
     """
-    values = [amplicon_prefix, str(amplicon_number), direction, primer_suffix]
+    values = [amplicon_prefix, str(amplicon_number), direction.value, primer_suffix]
     return "_".join([str(x) for x in values if x is not None])
 
 
@@ -110,11 +165,6 @@ def create_primer_attributes_str(
     )
 
 
-class StrandEnum(enum.Enum):
-    FORWARD = "+"
-    REVERSE = "-"
-
-
 def lr_string_to_strand_char(s: str) -> str:
     """
     Convert a LEFT/RIGHT string to a StrandEnum.
@@ -127,6 +177,15 @@ def lr_string_to_strand_char(s: str) -> str:
         return StrandEnum.REVERSE.value
     else:
         raise ValueError(f"Invalid strand: {s}. Must be LEFT or RIGHT")
+
+
+def strand_char_to_primer_direction_str(s: str) -> str:
+    if s == StrandEnum.FORWARD.value:
+        return PrimerDirectionType.LEFT.value
+    elif s == StrandEnum.REVERSE.value:
+        return PrimerDirectionType.RIGHT.value
+    else:
+        raise ValueError(f"unknown strand char ({s})")
 
 
 class BedLine:
@@ -195,6 +254,7 @@ class BedLine:
     # primernames components
     _amplicon_prefix: str
     _amplicon_number: int
+    _primer_direction: PrimerDirectionType
     _primer_suffix: Union[int, str, None]
 
     def __init__(
@@ -214,7 +274,10 @@ class BedLine:
         # Check primername-strand + strand match
         self.primername = primername
 
-        if strand != self.strand:
+        # If probe use strand char
+        if self.primer_direction == PrimerDirectionType.PROBE:
+            self.strand = strand
+        elif strand != self.strand:
             raise ValueError(
                 f"primername ({primername}) implies strand ({self.strand}), which is different to provided ({strand})"
             )
@@ -350,12 +413,26 @@ class BedLine:
             self._primer_suffix = int_v
 
     @property
+    def primer_direction(self) -> PrimerDirectionType:
+        """Retuns the PrimerDirection enum"""
+        return self._primer_direction
+
+    @property
+    def primer_direction_str(self) -> str:
+        """Return the string representation of PrimerDirection"""
+        return self._primer_direction.value
+
+    @primer_direction.setter
+    def primer_direction(self, v: str):
+        self._primer_direction = primer_direction_str_to_enum(v)
+
+    @property
     def primername(self):
         """Return the primername of the primer"""
         return create_primername(
             self.amplicon_prefix,
             self.amplicon_number,
-            self.direction_str,
+            self.primer_direction,
             self.primer_suffix,
         )
 
@@ -369,8 +446,11 @@ class BedLine:
         parts = v.split("_")
         self.amplicon_prefix = parts[0]
         self.amplicon_number = int(parts[1])
+        self.primer_direction = parts[2]
 
-        self.strand = lr_string_to_strand_char(parts[2])
+        # if the name has an unambiguous direction set it
+        if self.primer_direction != PrimerDirectionType.PROBE:
+            self.strand = lr_string_to_strand_char(self.primer_direction_str)
 
         # Try to parse the primer_suffix
         try:
@@ -410,6 +490,12 @@ class BedLine:
                 f"strand must be a str of ({[x.value for x in StrandEnum]}). Got ({v})"
             )
         self._strand = v
+
+        # Update primername
+        if self.primer_direction == PrimerDirectionType.PROBE:
+            return
+        else:
+            self.primer_direction = strand_char_to_primer_direction_str(v)
 
     @property
     def sequence(self):
@@ -793,6 +879,32 @@ def group_by_strand(list_bedlines: list[BedLine]) -> dict[str, list[BedLine]]:
     return bedlines_dict
 
 
+def group_by_direction(
+    list_bedlines: list[BedLine],
+) -> dict[str, list[BedLine]]:
+    """Groups a list of BedLine objects by primer direction.
+
+    Takes a list of BedLine objects and organizes them into a dictionary
+    where keys are direction values and values are lists of
+    BedLine objects in that direction.
+
+    Args:
+        list_bedlines: A list of BedLine objects to group.
+
+    Returns:
+        dict[str, list[BedLine]]: A dictionary mapping direction values (str)
+            to lists of BedLine objects.
+
+    """
+    bedlines_dict = {}
+    for bedline in list_bedlines:
+        if bedline.primer_direction_str not in bedlines_dict:
+            bedlines_dict[bedline.primer_direction_str] = []
+        bedlines_dict[bedline.primer_direction_str].append(bedline)
+
+    return bedlines_dict
+
+
 def group_by_pool(
     list_bedlines: list[BedLine],
 ) -> dict[int, list[BedLine]]:
@@ -821,7 +933,7 @@ def group_by_pool(
 def group_primer_pairs(
     bedlines: list[BedLine],
 ) -> list[tuple[list[BedLine], list[BedLine]]]:
-    """Groups BedLine objects into primer pairs by chromosome and amplicon number.
+    """Groups Primer BedLine objects into primer pairs by chromosome and amplicon number.
 
     This function takes a list of BedLine objects and groups them based on chromosome
     and amplicon number. For each group, it creates a tuple containing the forward
@@ -844,13 +956,43 @@ def group_primer_pairs(
             chrom_bedlines
         ).values():
             # Generate primer pairs
-            strand_to_bedlines = group_by_strand(amplicon_number_bedlines)
+            strand_to_bedlines = group_by_direction(amplicon_number_bedlines)
             primer_pairs.append(
                 (
-                    strand_to_bedlines.get(StrandEnum.FORWARD.value, []),
-                    strand_to_bedlines.get(StrandEnum.REVERSE.value, []),
+                    strand_to_bedlines.get(PrimerDirectionType.LEFT.value, []),
+                    strand_to_bedlines.get(PrimerDirectionType.RIGHT.value, []),
                 )
             )
+
+    return primer_pairs
+
+
+def group_amplicons(
+    bedlines: list[BedLine],
+) -> list[dict[str, list[BedLine]]]:
+    """Groups all (including PROBES) BedLine objects into amplicons by chromosome and amplicon number.
+
+    This function takes a list of BedLine objects and groups them based on chromosome
+    and amplicon number. For each amplicon number, it creates a dict containing the LEFT,
+    PROBE, and RIGHT as the keys pointing to a list of corresponding Bedlines.
+
+    Args:
+        bedlines: A list of BedLine objects to group into primer pairs.
+
+    Returns:
+        A list of dicts, with the key being the primer direction string, and value a list of BedLines.
+
+    """
+    primer_pairs = []
+
+    # Group by chrom
+    for chrom_bedlines in group_by_chrom(bedlines).values():
+        # Group by amplicon number
+        for amplicon_number_bedlines in group_by_amplicon_number(
+            chrom_bedlines
+        ).values():
+            # Generate primer pairs
+            primer_pairs.append(group_by_direction(amplicon_number_bedlines))
 
     return primer_pairs
 
@@ -860,22 +1002,27 @@ def update_primernames(bedlines: list[BedLine]) -> list[BedLine]:
     Update primer names to v2 format in place.
     """
     # group the bedlines into primerpairs
-    primer_pairs = group_primer_pairs(bedlines)
+    primer_pairs = group_amplicons(bedlines)
 
     # Update the primer names
-    for fbedlines, rbedlines in primer_pairs:
-        # Sort the bedlines by sequence
-        fbedlines.sort(key=lambda x: x.sequence)
-        for i, bedline in enumerate(fbedlines, start=1):
-            bedline.primername = (
-                f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_LEFT_{i}"
-            )
+    for dicts in primer_pairs:
+        # left primer
+        lp = dicts.get(PrimerDirectionType.LEFT.value, [])
+        lp.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(lp, start=1):
+            bedline.primername = f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_{PrimerDirectionType.LEFT.value}_{i}"
 
-        rbedlines.sort(key=lambda x: x.sequence)
-        for i, bedline in enumerate(rbedlines, start=1):
-            bedline.primername = (
-                f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_RIGHT_{i}"
-            )
+        # probes
+        pp = dicts.get(PrimerDirectionType.PROBE.value, [])
+        pp.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(pp, start=1):
+            bedline.primername = f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_{PrimerDirectionType.PROBE.value}_{i}"
+
+        # right primers
+        rp = dicts.get(PrimerDirectionType.RIGHT.value, [])
+        rp.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(rp, start=1):
+            bedline.primername = f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_{PrimerDirectionType.RIGHT.value}_{i}"
 
     return bedlines
 
@@ -911,25 +1058,43 @@ def sort_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
     """
     Sorts bedlines by chrom, start, end, primername.
     """
-    primerpairs = group_primer_pairs(bedlines)
-    primerpairs.sort(key=lambda x: (x[0][0].chrom, x[0][0].amplicon_number))
+    primerpairs = group_amplicons(bedlines)
+    primerpairs.sort(
+        key=lambda x: (
+            x[PrimerDirectionType.LEFT.value][0].chrom,
+            x[PrimerDirectionType.LEFT.value][0].amplicon_number,
+        )
+    )  # Uses left primers
 
-    for fps, rps in primerpairs:
-        fps.sort(
+    # Sorted list
+    sorted_list = []
+
+    for dicts in primerpairs:
+        # Left primers
+        lp = dicts.get(PrimerDirectionType.LEFT.value, [])
+        lp.sort(
             key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
         )
-        rps.sort(
+        sorted_list.extend(lp)
+
+        # Probes
+        pp = dicts.get(PrimerDirectionType.PROBE.value, [])
+        pp.sort(
             key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
         )
+        sorted_list.extend(pp)
 
-    return [
-        bedline
-        for fbedlines, rbedlines in primerpairs
-        for bedline in fbedlines + rbedlines
-    ]
+        # Right Primers
+        rp = dicts.get(PrimerDirectionType.RIGHT.value, [])
+        rp.sort(
+            key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
+        )
+        sorted_list.extend(rp)
+
+    return sorted_list
 
 
-def merge_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
+def merge_primers(bedlines: list[BedLine]) -> list[BedLine]:
     """
     merges bedlines with the same chrom, amplicon number and direction.
     """
@@ -948,7 +1113,7 @@ def merge_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
                     chrom=fbedlines[0].chrom,
                     start=fbedline_start,
                     end=fbedline_end,
-                    primername=f"{fbedlines[0].amplicon_prefix}_{fbedlines[0].amplicon_number}_LEFT_1",
+                    primername=f"{fbedlines[0].amplicon_prefix}_{fbedlines[0].amplicon_number}_{PrimerDirectionType.LEFT.value}_1",
                     pool=fbedlines[0].pool,
                     strand=StrandEnum.FORWARD.value,
                     sequence=fbedline_sequence,
@@ -968,7 +1133,7 @@ def merge_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
                     chrom=rbedlines[0].chrom,
                     start=rbedline_start,
                     end=rbedline_end,
-                    primername=f"{rbedlines[0].amplicon_prefix}_{rbedlines[0].amplicon_number}_RIGHT_1",
+                    primername=f"{rbedlines[0].amplicon_prefix}_{rbedlines[0].amplicon_number}_{PrimerDirectionType.RIGHT.value}_1",
                     pool=rbedlines[0].pool,
                     strand=StrandEnum.REVERSE.value,
                     sequence=rbedline_sequence,
@@ -1052,7 +1217,7 @@ class BedFileModifier:
         """
         if merge_alts:
             # Merge the alt primers
-            bedlines = merge_bedlines(bedlines)
+            bedlines = merge_primers(bedlines)
         # Downgrade the primer names
         return downgrade_primernames(bedlines)
 
@@ -1079,7 +1244,7 @@ class BedFileModifier:
         return sort_bedlines(bedlines)
 
     @staticmethod
-    def merge_bedlines(
+    def merge_primers(
         bedlines: list[BedLine],
     ) -> list[BedLine]:
         """Merges bedlines with the same chrom, amplicon number and direction.
@@ -1100,6 +1265,6 @@ class BedFileModifier:
         Examples:
             >>> from primalbedtools.bedfiles import BedLine, BedFileModifier
             >>> bedlines = [BedLine(...)]  # List of BedLine objects
-            >>> merged_lines = BedFileModifier.merge_bedlines(bedlines)
+            >>> merged_lines = BedFileModifier.merge_primers(bedlines)
         """
-        return merge_bedlines(bedlines)
+        return merge_primers(bedlines)
