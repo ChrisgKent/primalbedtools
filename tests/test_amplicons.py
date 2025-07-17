@@ -4,10 +4,12 @@ import unittest
 from primalbedtools.amplicons import Amplicon, create_amplicons
 from primalbedtools.bedfiles import BedLine, BedLineParser, group_primer_pairs
 
+TEST_BEDLINE = pathlib.Path(__file__).parent / "inputs/test.bed"
+
 
 class TestAmplicon(unittest.TestCase):
     def setUp(self) -> None:
-        self.test_bedline = pathlib.Path("tests/test.bed")
+        self.test_bedline = TEST_BEDLINE
         self._test_headers, self.test_bedlines = BedLineParser.from_file(
             self.test_bedline
         )

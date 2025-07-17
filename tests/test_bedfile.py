@@ -32,12 +32,12 @@ from primalbedtools.bedfiles import (
     write_bedfile,
 )
 
-TEST_BEDFILE = pathlib.Path(__file__).parent / "test.bed"
-TEST_V2_BEDFILE = pathlib.Path(__file__).parent / "test.v2.bed"
-TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "test.weights.bed"
-TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "test.weights.bed"
-TEST_ATTRIBUTES_BEDFILE = pathlib.Path(__file__).parent / "test.attributes.bed"
-TEST_PROBE_BEDFILE = pathlib.Path(__file__).parent / "test.probe.bed"
+TEST_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.bed"
+TEST_V2_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.v2.bed"
+TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.weights.bed"
+TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.weights.bed"
+TEST_ATTRIBUTES_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.attributes.bed"
+TEST_PROBE_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.probe.bed"
 
 
 class TestValidationFuncs(unittest.TestCase):

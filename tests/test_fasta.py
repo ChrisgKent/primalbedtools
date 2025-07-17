@@ -4,6 +4,8 @@ from io import StringIO
 
 from primalbedtools.fasta import read_fasta
 
+FASTA_PATH = pathlib.Path(__file__).parent / "inputs/msa.input.fasta"
+
 
 class TestFasta(unittest.TestCase):
     def test_read_fasta_from_handle(self):
@@ -18,7 +20,7 @@ class TestFasta(unittest.TestCase):
         self.assertEqual(msa["chr2"], "----------ATCG-ATC--GAANNNNNNNNNNATCGATCGAA")
 
     def test_read_fasta_from_file(self):
-        fasta_path = pathlib.Path("tests/msa.input.fasta").resolve()
+        fasta_path = FASTA_PATH.resolve()
         msa = read_fasta(str(fasta_path))
 
         self.assertEqual(msa.keys(), {"seq1", "seq2"})

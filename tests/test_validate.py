@@ -1,3 +1,4 @@
+import pathlib
 import unittest
 
 from primalbedtools.amplicons import Amplicon
@@ -8,6 +9,8 @@ from primalbedtools.validate import (
     validate_primerbed,
     validate_ref_and_bed,
 )
+
+FASTA_PATH = pathlib.Path(__file__).parent / "inputs/msa.input.fasta"
 
 
 class TestValidate(unittest.TestCase):
@@ -49,7 +52,7 @@ class TestValidate(unittest.TestCase):
             sequence="ACGT",
         )
 
-        self.fasta_path = "tests/msa.input.fasta"
+        self.fasta_path = str(FASTA_PATH.absolute())
         return super().setUp()
 
     def test_do_pp_ol(self):
