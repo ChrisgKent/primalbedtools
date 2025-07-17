@@ -31,7 +31,7 @@ class PrimerClass(enum.Enum):
     PROBE = "PROBE"
 
 
-class StrandEnum(enum.Enum):
+class Strand(enum.Enum):
     FORWARD = "+"
     REVERSE = "-"
 
@@ -167,22 +167,22 @@ def create_primer_attributes_str(
 
 def lr_string_to_strand_char(s: str) -> str:
     """
-    Convert a LEFT/RIGHT string to a StrandEnum.
+    Convert a LEFT/RIGHT string to a Strand.
     """
     parsed_strand = s.upper().strip()
 
     if parsed_strand == "LEFT":
-        return StrandEnum.FORWARD.value
+        return Strand.FORWARD.value
     elif parsed_strand == "RIGHT":
-        return StrandEnum.REVERSE.value
+        return Strand.REVERSE.value
     else:
         raise ValueError(f"Invalid strand: {s}. Must be LEFT or RIGHT")
 
 
 def strand_char_to_primer_class_str(s: str) -> str:
-    if s == StrandEnum.FORWARD.value:
+    if s == Strand.FORWARD.value:
         return PrimerClass.LEFT.value
-    elif s == StrandEnum.REVERSE.value:
+    elif s == Strand.REVERSE.value:
         return PrimerClass.RIGHT.value
     else:
         raise ValueError(f"unknown strand char ({s})")
@@ -485,9 +485,9 @@ class BedLine:
         except ValueError as e:
             raise ValueError(f"strand must be a str. Got ({v})") from e
 
-        if v not in {x.value for x in StrandEnum}:
+        if v not in {x.value for x in Strand}:
             raise ValueError(
-                f"strand must be a str of ({[x.value for x in StrandEnum]}). Got ({v})"
+                f"strand must be a str of ({[x.value for x in Strand]}). Got ({v})"
             )
         self._strand = v
 
@@ -593,7 +593,7 @@ class BedLine:
     @property
     def direction_str(self) -> str:
         """Return 'LEFT' or 'RIGHT' based on strand"""
-        return "LEFT" if self.strand == StrandEnum.FORWARD.value else "RIGHT"
+        return "LEFT" if self.strand == Strand.FORWARD.value else "RIGHT"
 
     def to_bed(self) -> str:
         """Convert the BedLine object to a BED formatted string."""
@@ -1115,7 +1115,7 @@ def merge_primers(bedlines: list[BedLine]) -> list[BedLine]:
                     end=fbedline_end,
                     primername=f"{fbedlines[0].amplicon_prefix}_{fbedlines[0].amplicon_number}_{PrimerClass.LEFT.value}_1",
                     pool=fbedlines[0].pool,
-                    strand=StrandEnum.FORWARD.value,
+                    strand=Strand.FORWARD.value,
                     sequence=fbedline_sequence,
                 )
             )
@@ -1135,7 +1135,7 @@ def merge_primers(bedlines: list[BedLine]) -> list[BedLine]:
                     end=rbedline_end,
                     primername=f"{rbedlines[0].amplicon_prefix}_{rbedlines[0].amplicon_number}_{PrimerClass.RIGHT.value}_1",
                     pool=rbedlines[0].pool,
-                    strand=StrandEnum.REVERSE.value,
+                    strand=Strand.REVERSE.value,
                     sequence=rbedline_sequence,
                 )
             )
