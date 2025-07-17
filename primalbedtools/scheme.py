@@ -2,7 +2,7 @@ from typing import Optional
 
 from primalbedtools.bedfiles import (
     BedLine,
-    PrimerDirectionType,
+    PrimerClass,
     bedline_from_str,
     create_bedfile_str,
     parse_headers_to_dict,
@@ -54,7 +54,7 @@ class Scheme:
         returns True if any of the bedlines are PROBES
         """
         for bedline in self.bedlines:
-            if bedline.primer_direction == PrimerDirectionType.PROBE:
+            if bedline.primer_class == PrimerClass.PROBE:
                 return True
         return False
 

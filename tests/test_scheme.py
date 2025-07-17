@@ -101,3 +101,10 @@ class TestScheme(unittest.TestCase):
                 "example multiplexed-qPCR assay": None,
             },
         )
+
+    def test_contains_probes(self):
+        scheme = Scheme.from_file(str(TEST_PROBE_BEDFILE))
+        self.assertTrue(scheme.contains_probes)
+
+        scheme = Scheme.from_file(str(TEST_ATTRIBUTES_BEDFILE))
+        self.assertFalse(scheme.contains_probes)

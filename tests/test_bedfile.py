@@ -7,7 +7,7 @@ from primalbedtools.bedfiles import (
     PRIMER_WEIGHT_KEY,
     BedLine,
     BedLineParser,
-    PrimerDirectionType,
+    PrimerClass,
     PrimerNameVersion,
     create_bedfile_str,
     create_bedline,
@@ -23,10 +23,10 @@ from primalbedtools.bedfiles import (
     merge_primers,
     parse_headers_to_dict,
     parse_primer_attributes_str,
-    primer_direction_str_to_enum,
+    primer_class_str_to_enum,
     read_bedfile,
     sort_bedlines,
-    strand_char_to_primer_direction_str,
+    strand_char_to_primer_class_str,
     update_primernames,
     version_primername,
     write_bedfile,
@@ -50,25 +50,21 @@ class TestValidationFuncs(unittest.TestCase):
         with self.assertRaises(ValueError):
             lr_string_to_strand_char("")
 
-    def test_primer_direction_str_to_enum(self):
-        self.assertEqual(primer_direction_str_to_enum("LEFT"), PrimerDirectionType.LEFT)
-        self.assertEqual(
-            primer_direction_str_to_enum("RIGHT"), PrimerDirectionType.RIGHT
-        )
-        self.assertEqual(
-            primer_direction_str_to_enum("PROBE"), PrimerDirectionType.PROBE
-        )
+    def test_primer_class_str_to_enum(self):
+        self.assertEqual(primer_class_str_to_enum("LEFT"), PrimerClass.LEFT)
+        self.assertEqual(primer_class_str_to_enum("RIGHT"), PrimerClass.RIGHT)
+        self.assertEqual(primer_class_str_to_enum("PROBE"), PrimerClass.PROBE)
 
         # Check unexpected
         with self.assertRaises(ValueError):
-            primer_direction_str_to_enum("")
+            primer_class_str_to_enum("")
 
-    def test_strand_char_to_primer_direction_str(self):
-        self.assertEqual(strand_char_to_primer_direction_str("+"), "LEFT")
-        self.assertEqual(strand_char_to_primer_direction_str("-"), "RIGHT")
+    def test_strand_char_to_primer_class_str(self):
+        self.assertEqual(strand_char_to_primer_class_str("+"), "LEFT")
+        self.assertEqual(strand_char_to_primer_class_str("-"), "RIGHT")
         # Check unexpected
         with self.assertRaises(ValueError):
-            strand_char_to_primer_direction_str("")
+            strand_char_to_primer_class_str("")
 
 
 class TestHeader(unittest.TestCase):
@@ -1123,26 +1119,26 @@ class TestGroupByDirection(unittest.TestCase):
         )
         grouped = group_by_direction([bedline1, bedline2, bedline3])
         self.assertEqual(len(grouped), 3)
-        self.assertEqual(len(grouped[PrimerDirectionType.LEFT.value]), 1)
-        self.assertEqual(len(grouped[PrimerDirectionType.RIGHT.value]), 1)
-        self.assertEqual(len(grouped[PrimerDirectionType.PROBE.value]), 1)
-        self.assertEqual(grouped[PrimerDirectionType.LEFT.value], [bedline1])
-        self.assertEqual(grouped[PrimerDirectionType.RIGHT.value], [bedline2])
-        self.assertEqual(grouped[PrimerDirectionType.PROBE.value], [bedline3])
+        self.assertEqual(len(grouped[PrimerClass.LEFT.value]), 1)
+        self.assertEqual(len(grouped[PrimerClass.RIGHT.value]), 1)
+        self.assertEqual(len(grouped[PrimerClass.PROBE.value]), 1)
+        self.assertEqual(grouped[PrimerClass.LEFT.value], [bedline1])
+        self.assertEqual(grouped[PrimerClass.RIGHT.value], [bedline2])
+        self.assertEqual(grouped[PrimerClass.PROBE.value], [bedline3])
 
     def test_group_by_direction_file(self):
         headers, bedlines = read_bedfile(TEST_BEDFILE)
         grouped = group_by_direction(bedlines)
         self.assertEqual(len(grouped), 2)
-        self.assertEqual(len(grouped[PrimerDirectionType.LEFT.value]), 3)
-        self.assertEqual(len(grouped[PrimerDirectionType.RIGHT.value]), 3)
+        self.assertEqual(len(grouped[PrimerClass.LEFT.value]), 3)
+        self.assertEqual(len(grouped[PrimerClass.RIGHT.value]), 3)
 
         # Check that all LEFT primers have correct direction
-        for bedline in grouped[PrimerDirectionType.LEFT.value]:
+        for bedline in grouped[PrimerClass.LEFT.value]:
             self.assertEqual(bedline.direction_str, "LEFT")
 
         # Check that all RIGHT primers have correct direction
-        for bedline in grouped[PrimerDirectionType.RIGHT.value]:
+        for bedline in grouped[PrimerClass.RIGHT.value]:
             self.assertEqual(bedline.direction_str, "RIGHT")
 
 
