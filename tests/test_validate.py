@@ -1,7 +1,7 @@
 import unittest
 
+from primalbedtools.amplicons import Amplicon
 from primalbedtools.bedfiles import BedLine
-from primalbedtools.primerpairs import Amplicon
 from primalbedtools.validate import (
     do_pp_ol,
     validate,

@@ -1,11 +1,11 @@
 import argparse
 
+from primalbedtools.amplicons import create_amplicons
 from primalbedtools.bedfiles import (
     BedFileModifier,
     BedLineParser,
 )
 from primalbedtools.fasta import read_fasta
-from primalbedtools.primerpairs import create_amplicons
 from primalbedtools.remap import remap
 from primalbedtools.validate import validate, validate_primerbed
 

@@ -1,6 +1,6 @@
+from primalbedtools.amplicons import Amplicon, create_amplicons, do_pp_ol
 from primalbedtools.bedfiles import BedLine, BedLineParser
 from primalbedtools.fasta import read_fasta
-from primalbedtools.primerpairs import Amplicon, create_amplicons, do_pp_ol
 
 
 def find_for_ol_in_pool(bedlines: list[BedLine]) -> set[tuple[Amplicon, Amplicon]]:
