@@ -8,12 +8,12 @@ def find_for_ol_in_pool(bedlines: list[BedLine]) -> set[tuple[Amplicon, Amplicon
     Sorts each bedline into its pool, and checks for overlap using the indexes.
     """
     # Create Amplicons
-    Amplicons = create_amplicons(bedlines)
+    amplicons = create_amplicons(bedlines)
 
     # keep track of each pp region
     regions = dict()
     # Get each
-    for amplicon in Amplicons:
+    for amplicon in amplicons:
         # Add chrom
         if amplicon.chrom not in regions:
             regions[amplicon.chrom] = dict()
@@ -29,9 +29,9 @@ def find_for_ol_in_pool(bedlines: list[BedLine]) -> set[tuple[Amplicon, Amplicon
 
     # For each check for ol
     for _chrom, pools in regions.items():
-        for _pool, Amplicons in pools.items():
-            for pp1 in Amplicons:
-                for pp2 in Amplicons:
+        for _pool, amplicons in pools.items():
+            for pp1 in amplicons:
+                for pp2 in amplicons:
                     # Ignore self ol
                     if pp1 == pp2:
                         continue

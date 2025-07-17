@@ -90,14 +90,14 @@ def main():
     elif args.subparser_name == "update":
         bedlines = BedFileModifier.update_primernames(bedlines)
     elif args.subparser_name == "amplicon":
-        Amplicons = create_amplicons(bedlines)
+        amplicons = create_amplicons(bedlines)
 
         # Print the amplicons
-        for Amplicon in Amplicons:
+        for amplicon in amplicons:
             if args.primertrim:
-                print(Amplicon.to_primertrim_str())
+                print(amplicon.to_primertrim_str())
             else:
-                print(Amplicon.to_amplicon_str())
+                print(amplicon.to_amplicon_str())
         exit(0)  # Exit early
     elif args.subparser_name == "merge":
         bedlines = BedFileModifier.merge_primers(bedlines)

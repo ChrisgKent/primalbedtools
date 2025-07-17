@@ -1,8 +1,8 @@
 import pathlib
 import unittest
 
+from primalbedtools.amplicons import Amplicon, create_amplicons
 from primalbedtools.bedfiles import BedLine, BedLineParser, group_primer_pairs
-from primalbedtools.primerpairs import Amplicon, create_amplicons
 
 
 class TestAmplicon(unittest.TestCase):

@@ -1058,8 +1058,8 @@ def sort_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
     """
     Sorts bedlines by chrom, start, end, primername.
     """
-    Amplicons = group_amplicons(bedlines)
-    Amplicons.sort(
+    amplicons = group_amplicons(bedlines)
+    amplicons.sort(
         key=lambda x: (
             x[PrimerClass.LEFT.value][0].chrom,
             x[PrimerClass.LEFT.value][0].amplicon_number,
@@ -1069,7 +1069,7 @@ def sort_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
     # Sorted list
     sorted_list = []
 
-    for dicts in Amplicons:
+    for dicts in amplicons:
         # Left primers
         lp = dicts.get(PrimerClass.LEFT.value, [])
         lp.sort(
