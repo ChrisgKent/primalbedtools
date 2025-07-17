@@ -16,7 +16,7 @@ from primalbedtools.bedfiles import (
     expand_bedlines,
     group_by_amplicon_number,
     group_by_chrom,
-    group_by_direction,
+    group_by_class,
     group_by_pool,
     group_by_strand,
     lr_string_to_strand_char,
@@ -1117,7 +1117,7 @@ class TestGroupByDirection(unittest.TestCase):
             strand="+",
             sequence="ACGT",
         )
-        grouped = group_by_direction([bedline1, bedline2, bedline3])
+        grouped = group_by_class([bedline1, bedline2, bedline3])
         self.assertEqual(len(grouped), 3)
         self.assertEqual(len(grouped[PrimerClass.LEFT.value]), 1)
         self.assertEqual(len(grouped[PrimerClass.RIGHT.value]), 1)
@@ -1128,7 +1128,7 @@ class TestGroupByDirection(unittest.TestCase):
 
     def test_group_by_direction_file(self):
         headers, bedlines = read_bedfile(TEST_BEDFILE)
-        grouped = group_by_direction(bedlines)
+        grouped = group_by_class(bedlines)
         self.assertEqual(len(grouped), 2)
         self.assertEqual(len(grouped[PrimerClass.LEFT.value]), 3)
         self.assertEqual(len(grouped[PrimerClass.RIGHT.value]), 3)

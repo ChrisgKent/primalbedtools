@@ -1,7 +1,7 @@
 import unittest
 
 from primalbedtools.bedfiles import BedLine
-from primalbedtools.primerpairs import PrimerPair
+from primalbedtools.primerpairs import Amplicon
 from primalbedtools.validate import (
     do_pp_ol,
     validate,
@@ -53,8 +53,8 @@ class TestValidate(unittest.TestCase):
         return super().setUp()
 
     def test_do_pp_ol(self):
-        pp1 = PrimerPair([self.fbl1], [self.rbl1])
-        pp2 = PrimerPair([self.fbl2], [self.rbl2])
+        pp1 = Amplicon([self.fbl1], [self.rbl1])
+        pp2 = Amplicon([self.fbl2], [self.rbl2])
 
         # Detect ol
         self.assertTrue(do_pp_ol(pp1, pp2))

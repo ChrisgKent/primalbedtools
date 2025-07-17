@@ -46,7 +46,7 @@ def primer_class_str_to_enum(s: str):
         return PrimerClass.PROBE
 
     raise ValueError(
-        f"unknown primer direction str ({s}). Should be ['RIGHT', 'LEFT', 'PROBE']"
+        f"unknown primer class str ({s}). Should be ['RIGHT', 'LEFT', 'PROBE']"
     )
 
 
@@ -96,13 +96,13 @@ def parse_headers_to_dict(headers: list[str]) -> dict[str, str]:
 def create_primername(
     amplicon_prefix: str,
     amplicon_number: int,
-    direction: PrimerClass,
+    primer_class: PrimerClass,
     primer_suffix: Union[str, int, None],
 ):
     """
     Creates an unvalidated primername string.
     """
-    values = [amplicon_prefix, amplicon_number, direction.value, primer_suffix]
+    values = [amplicon_prefix, amplicon_number, primer_class.value, primer_suffix]
     return "_".join([str(x) for x in values if x is not None])
 
 
@@ -205,7 +205,7 @@ class BedLine:
         pool (int): 1-based pool number (use ipool for 0-based pool number)
         strand (str): Strand of the primer ("+" for forward, "-" for reverse)
         sequence (str): Sequence of the primer
-        attributes (dict[str,str|float], None): Dict of primer attributes (e.g., primerweights (pw) for rebalancing).
+        attributes (dict[str,str|float], None): Dict of primer attributes (e.g., primerWeights (pw) for rebalancing).
 
     Properties:
         length (int): Length of the primer (end - start)
@@ -879,20 +879,20 @@ def group_by_strand(list_bedlines: list[BedLine]) -> dict[str, list[BedLine]]:
     return bedlines_dict
 
 
-def group_by_direction(
+def group_by_class(
     list_bedlines: list[BedLine],
 ) -> dict[str, list[BedLine]]:
-    """Groups a list of BedLine objects by primer direction.
+    """Groups a list of BedLine objects by primer class.
 
     Takes a list of BedLine objects and organizes them into a dictionary
-    where keys are direction values and values are lists of
-    BedLine objects in that direction.
+    where keys are class values and values are lists of
+    BedLine objects in that class.
 
     Args:
         list_bedlines: A list of BedLine objects to group.
 
     Returns:
-        dict[str, list[BedLine]]: A dictionary mapping direction values (str)
+        dict[str, list[BedLine]]: A dictionary mapping class values (str)
             to lists of BedLine objects.
 
     """
@@ -956,7 +956,7 @@ def group_primer_pairs(
             chrom_bedlines
         ).values():
             # Generate primer pairs
-            strand_to_bedlines = group_by_direction(amplicon_number_bedlines)
+            strand_to_bedlines = group_by_class(amplicon_number_bedlines)
             primer_pairs.append(
                 (
                     strand_to_bedlines.get(PrimerClass.LEFT.value, []),
@@ -980,7 +980,7 @@ def group_amplicons(
         bedlines: A list of BedLine objects to group into primer pairs.
 
     Returns:
-        A list of dicts, with the key being the primer direction string, and value a list of BedLines.
+        A list of dicts, with the key being the primer class string, and value a list of BedLines.
 
     """
     primer_pairs = []
@@ -992,7 +992,7 @@ def group_amplicons(
             chrom_bedlines
         ).values():
             # Generate primer pairs
-            primer_pairs.append(group_by_direction(amplicon_number_bedlines))
+            primer_pairs.append(group_by_class(amplicon_number_bedlines))
 
     return primer_pairs
 
@@ -1001,7 +1001,7 @@ def update_primernames(bedlines: list[BedLine]) -> list[BedLine]:
     """
     Update primer names to v2 format in place.
     """
-    # group the bedlines into primerpairs
+    # group the bedlines into Amplicons
     primer_pairs = group_amplicons(bedlines)
 
     # Update the primer names
@@ -1031,21 +1031,21 @@ def downgrade_primernames(bedlines: list[BedLine]) -> list[BedLine]:
     """
     Downgrades primer names to v1 format in place.
     """
-    # group the bedlines into primerpairs
+    # group the bedlines into Amplicons
     primer_pairs = group_primer_pairs(bedlines)
 
     # Update the primer names
-    for fbedlines, rbedlines in primer_pairs:
+    for left, right in primer_pairs:
         # Sort the bedlines by sequence
-        fbedlines.sort(key=lambda x: x.sequence)
-        for i, bedline in enumerate(fbedlines, start=1):
+        left.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(left, start=1):
             alt = "" if i == 1 else f"_alt{i - 1}"
             bedline.primername = (
                 f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_LEFT{alt}"
             )
 
-        rbedlines.sort(key=lambda x: x.sequence)
-        for i, bedline in enumerate(rbedlines, start=1):
+        right.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(right, start=1):
             alt = "" if i == 1 else f"_alt{i - 1}"
             bedline.primername = (
                 f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_RIGHT{alt}"
@@ -1058,8 +1058,8 @@ def sort_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
     """
     Sorts bedlines by chrom, start, end, primername.
     """
-    primerpairs = group_amplicons(bedlines)
-    primerpairs.sort(
+    Amplicons = group_amplicons(bedlines)
+    Amplicons.sort(
         key=lambda x: (
             x[PrimerClass.LEFT.value][0].chrom,
             x[PrimerClass.LEFT.value][0].amplicon_number,
@@ -1069,7 +1069,7 @@ def sort_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
     # Sorted list
     sorted_list = []
 
-    for dicts in primerpairs:
+    for dicts in Amplicons:
         # Left primers
         lp = dicts.get(PrimerClass.LEFT.value, [])
         lp.sort(
@@ -1096,45 +1096,41 @@ def sort_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
 
 def merge_primers(bedlines: list[BedLine]) -> list[BedLine]:
     """
-    merges bedlines with the same chrom, amplicon number and direction.
+    merges bedlines with the same chrom, amplicon number and class.
     """
     merged_bedlines = []
 
-    for fbedlines, rbedlines in group_primer_pairs(bedlines):
+    for left, right in group_primer_pairs(bedlines):
         # Merge forward primers
-        if fbedlines:
-            fbedline_start = min([bedline.start for bedline in fbedlines])
-            fbedline_end = max([bedline.end for bedline in fbedlines])
-            fbedline_sequence = max(
-                [bedline.sequence for bedline in fbedlines], key=len
-            )
+        if left:
+            fbedline_start = min([bedline.start for bedline in left])
+            fbedline_end = max([bedline.end for bedline in left])
+            fbedline_sequence = max([bedline.sequence for bedline in left], key=len)
             merged_bedlines.append(
                 BedLine(
-                    chrom=fbedlines[0].chrom,
+                    chrom=left[0].chrom,
                     start=fbedline_start,
                     end=fbedline_end,
-                    primername=f"{fbedlines[0].amplicon_prefix}_{fbedlines[0].amplicon_number}_{PrimerClass.LEFT.value}_1",
-                    pool=fbedlines[0].pool,
+                    primername=f"{left[0].amplicon_prefix}_{left[0].amplicon_number}_{PrimerClass.LEFT.value}_1",
+                    pool=left[0].pool,
                     strand=Strand.FORWARD.value,
                     sequence=fbedline_sequence,
                 )
             )
 
         # Merge reverse primers
-        if rbedlines:
-            rbedline_start = min([bedline.start for bedline in rbedlines])
-            rbedline_end = max([bedline.end for bedline in rbedlines])
-            rbedline_sequence = max(
-                [bedline.sequence for bedline in rbedlines], key=len
-            )
+        if right:
+            rbedline_start = min([bedline.start for bedline in right])
+            rbedline_end = max([bedline.end for bedline in right])
+            rbedline_sequence = max([bedline.sequence for bedline in right], key=len)
 
             merged_bedlines.append(
                 BedLine(
-                    chrom=rbedlines[0].chrom,
+                    chrom=right[0].chrom,
                     start=rbedline_start,
                     end=rbedline_end,
-                    primername=f"{rbedlines[0].amplicon_prefix}_{rbedlines[0].amplicon_number}_{PrimerClass.RIGHT.value}_1",
-                    pool=rbedlines[0].pool,
+                    primername=f"{right[0].amplicon_prefix}_{right[0].amplicon_number}_{PrimerClass.RIGHT.value}_1",
+                    pool=right[0].pool,
                     strand=Strand.REVERSE.value,
                     sequence=rbedline_sequence,
                 )
@@ -1183,7 +1179,7 @@ class BedFileModifier:
         """Updates primer names to v2 format in place.
 
         Converts all primer names in the provided BedLine objects to the v2 format
-        (prefix_number_DIRECTION_index). Groups primers by chromosome and amplicon
+        (prefix_number_class_index). Groups primers by chromosome and amplicon
         number, then updates each group.
 
         Args:
@@ -1206,7 +1202,7 @@ class BedFileModifier:
         """Downgrades primer names to v1 format in place.
 
         Converts all primer names in the provided BedLine objects to the v1 format
-        (prefix_number_DIRECTION_ALT). Groups primers by chromosome and amplicon
+        (prefix_number_class_ALT). Groups primers by chromosome and amplicon
         number, then updates each group.
 
         Args:
@@ -1225,7 +1221,7 @@ class BedFileModifier:
     def sort_bedlines(
         bedlines: list[BedLine],
     ) -> list[BedLine]:
-        """Sorts the bedlines by chrom, amplicon number, direction, and sequence.
+        """Sorts the bedlines by chrom, amplicon number, class, and sequence.
 
         Groups BedLine objects into primer pairs, sorts those pairs by chromosome
         and amplicon number, then returns a flattened list of the sorted BedLine objects.
@@ -1247,7 +1243,7 @@ class BedFileModifier:
     def merge_primers(
         bedlines: list[BedLine],
     ) -> list[BedLine]:
-        """Merges bedlines with the same chrom, amplicon number and direction.
+        """Merges bedlines with the same chrom, amplicon number and class.
 
         Groups BedLine objects into primer pairs, then for each forward and reverse
         group, creates a merged BedLine with:

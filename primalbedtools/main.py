@@ -5,7 +5,7 @@ from primalbedtools.bedfiles import (
     BedLineParser,
 )
 from primalbedtools.fasta import read_fasta
-from primalbedtools.primerpairs import create_primerpairs
+from primalbedtools.primerpairs import create_amplicons
 from primalbedtools.remap import remap
 from primalbedtools.validate import validate, validate_primerbed
 
@@ -90,17 +90,17 @@ def main():
     elif args.subparser_name == "update":
         bedlines = BedFileModifier.update_primernames(bedlines)
     elif args.subparser_name == "amplicon":
-        primerpairs = create_primerpairs(bedlines)
+        Amplicons = create_amplicons(bedlines)
 
         # Print the amplicons
-        for primerpair in primerpairs:
+        for Amplicon in Amplicons:
             if args.primertrim:
-                print(primerpair.to_primertrim_str())
+                print(Amplicon.to_primertrim_str())
             else:
-                print(primerpair.to_amplicon_str())
+                print(Amplicon.to_amplicon_str())
         exit(0)  # Exit early
     elif args.subparser_name == "merge":
-        bedlines = BedFileModifier.merge_bedlines(bedlines)
+        bedlines = BedFileModifier.merge_primers(bedlines)
     elif args.subparser_name == "fasta":
         for line in bedlines:
             print(line.to_fasta(), end="")
