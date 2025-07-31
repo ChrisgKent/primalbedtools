@@ -9,6 +9,7 @@ from primalbedtools.bedfiles import (
     BedLineParser,
     PrimerClass,
     PrimerNameVersion,
+    Strand,
     create_bedfile_str,
     create_bedline,
     create_primer_attributes_str,
@@ -72,7 +73,6 @@ class TestHeader(unittest.TestCase):
         headers, _bedlines = read_bedfile(TEST_ATTRIBUTES_BEDFILE)
 
         attr_dict = parse_headers_to_dict(headers)
-
         self.assertDictEqual(
             attr_dict,
             {"MN908947.3": "sars-cov-2", "examplescheme": None, "gc": "fractiongc"},
@@ -82,7 +82,6 @@ class TestHeader(unittest.TestCase):
         headers, _bedlines = read_bedfile(TEST_PROBE_BEDFILE)
 
         attr_dict = parse_headers_to_dict(headers)
-
         self.assertDictEqual(
             attr_dict,
             {
@@ -204,6 +203,15 @@ class TestBedLine(unittest.TestCase):
             strand="+",
             sequence="ACGT",
         )
+        self.bedlinev2 = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT_1",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
         return super().setUp()
 
     def test_create_bedline_with_strand_diff(self):
@@ -245,7 +253,15 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(bedline.length, 100)
         self.assertEqual(bedline.amplicon_number, 1)
         self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(
+            bedline.amplicon_name,
+            f"{bedline.amplicon_prefix}_{bedline.amplicon_number}",
+        )
+        self.assertEqual(bedline.primername, "scheme_1_LEFT")
+        self.assertIsNone(bedline.primer_suffix)
+
         self.assertEqual(bedline.ipool, 0)
+        self.assertEqual(bedline.primer_class, PrimerClass.LEFT)
         self.assertEqual(
             bedline.to_bed(),
             "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n",
@@ -281,6 +297,40 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(
             bedline.to_bed(),
             "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n",
+        )
+
+    def test_bedline_create_probe(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_114_PROBE_2",
+            pool=10,
+            strand="+",
+            sequence="ACGT",
+            attributes="pw=10",
+        )
+        # Provides values
+        self.assertEqual(bedline.chrom, "chr1")
+        self.assertEqual(bedline.start, 100)
+        self.assertEqual(bedline.end, 200)
+        self.assertEqual(bedline.primername, "scheme_114_PROBE_2")
+        self.assertEqual(bedline.pool, 10)
+        self.assertEqual(bedline.strand, "+")
+        self.assertEqual(bedline.sequence, "ACGT")
+        self.assertEqual(bedline.weight, 10)
+        assert bedline.attributes is not None
+        self.assertDictEqual(bedline.attributes, {PRIMER_WEIGHT_KEY: 10})
+
+        # Derived values
+        self.assertEqual(bedline.length, 100)
+        self.assertEqual(bedline.amplicon_number, 114)
+        self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(bedline.amplicon_name, "scheme_114")
+        self.assertEqual(bedline.ipool, 9)
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_114_PROBE_2\t10\t+\tACGT\tpw=10.0\n",
         )
 
     def test_bedline_create_weight(self):
@@ -366,7 +416,7 @@ class TestBedLine(unittest.TestCase):
             "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tps=2;dfa=1000;test=100\n",
         )
 
-    def test_invalid_bedline(self):
+    def test_create_invalid_bedline(self):
         # Fake primername should raise ValueError
         with self.assertRaises(ValueError):
             BedLine(
@@ -460,6 +510,45 @@ class TestBedLine(unittest.TestCase):
         # Invalid primername should raise ValueError
         with self.assertRaises(ValueError):
             valid_bedline.primername = "invalid"
+
+    def test_bedline_change_class(self):
+        bl = self.bedlinev2
+
+        # CHeck is left
+        self.assertEqual(bl.primername, "scheme_1_LEFT_1")
+        self.assertEqual(bl.strand, Strand.FORWARD.value)
+
+        # Check LEFT -> PROBE
+        bl.primer_class = PrimerClass.PROBE.value
+        self.assertEqual(bl.primername, "scheme_1_PROBE_1")
+        self.assertEqual(bl.strand, Strand.FORWARD.value)  # Check strand unchanged
+
+        # Check PROBE -> RIGHT
+        with self.assertRaises(ValueError):
+            bl.primer_class = PrimerClass.RIGHT.value
+        # Change the strand
+        bl.strand = Strand.REVERSE.value
+
+        # PROBE -> RIGHT
+        bl.primer_class = PrimerClass.RIGHT.value
+        self.assertEqual(bl.primername, "scheme_1_RIGHT_1")
+        self.assertEqual(bl.strand, Strand.REVERSE.value)  # Check strand unchanged
+
+        # RIGHT -> LEFT
+        with self.assertRaises(ValueError):
+            bl.primer_class = PrimerClass.LEFT.value
+        # Try force change
+        bl.force_change(PrimerClass.LEFT.value, Strand.FORWARD.value)
+        self.assertEqual(bl.primername, "scheme_1_LEFT_1")
+        self.assertEqual(bl.strand, Strand.FORWARD.value)
+
+        # Force change LEFT -> RIGHT:
+        with self.assertRaises(ValueError):
+            bl.primer_class = PrimerClass.RIGHT.value
+        # Try force change
+        bl.force_change(PrimerClass.RIGHT.value, Strand.REVERSE.value)
+        self.assertEqual(bl.primername, "scheme_1_RIGHT_1")
+        self.assertEqual(bl.strand, Strand.REVERSE.value)
 
     def test_to_bed(self):
         bedline = BedLine(
@@ -631,11 +720,13 @@ class TestBedLine(unittest.TestCase):
 
     def test_update_primername_strand(self):
         bedline = self.bedline
+        bedline.primername = "scheme_10_RIGHT_2"
 
-        # Update the strand
-        bedline.strand = "-"
-        # Check name has changed
-        self.assertEqual(bedline.primername, "scheme_1_RIGHT")
+        # Check all updated
+        self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(bedline.amplicon_number, 10)
+        self.assertEqual(bedline.strand, "-")
+        self.assertEqual(bedline.primer_class, PrimerClass.RIGHT)
 
     def test_pool_setter(self):
         bedline = self.bedline
@@ -703,12 +794,6 @@ class TestBedLine(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             bedline.primername = "test_A_LEFT"
         self.assertIn("Invalid primername", str(context.exception))
-
-        # Test connection with strand property
-        bedline.primername = "test_7_LEFT"
-        self.assertEqual(bedline.strand, "+")
-        bedline.strand = "-"
-        self.assertEqual(bedline.primername, "test_7_RIGHT")
 
     def test_update_primername(self):
         bedline = self.bedline
