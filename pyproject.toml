@@ -3,7 +3,7 @@ name = "primalbedtools"
 version = "0.10.1"
 description = "A collection of tools for working with primer.bed files"
 authors = [{ name = "ChrisKent", email = "chrisgkent@gmail.com" }]
-requires-python = "~=3.9"
+requires-python = ">=3.9, <4"
 readme = "README.md"
 license = "MIT"
 
