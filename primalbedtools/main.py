@@ -76,6 +76,9 @@ def main():
         default=False,
         action="store_true",
     )
+    # format
+    format_parser = subparsers.add_parser("format", help="Format a bed file")
+    format_parser.add_argument("bed", type=str, help="Input BED file")
 
     args = parser.parse_args()
 
@@ -120,6 +123,9 @@ def main():
             bedlines=bedlines, merge_alts=args.merge_alts
         )
         _headers = []  # remove headers
+
+    elif args.subparser_name == "format":
+        pass
     else:
         parser.print_help()
 
