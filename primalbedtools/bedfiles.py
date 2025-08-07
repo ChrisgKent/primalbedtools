@@ -341,6 +341,19 @@ class BedLine:
         chr1    100     120     new-scheme_1_LEFT_alt1  1       +       ACGTACGTACGTACGTACGT
     """
 
+    __slots__ = (
+        "_chrom",
+        "_start",
+        "_end",
+        "_pool",
+        "_strand",
+        "_sequence",
+        "_attributes",
+        "_amplicon_prefix",
+        "_amplicon_number",
+        "_primer_class",
+        "_primer_suffix",
+    )
     # properties
     _chrom: str
     _start: int
@@ -352,7 +365,6 @@ class BedLine:
 
     # primerAttributes
     _attributes: Optional[dict[str, Union[str, float]]]
-    _weight: Optional[float]
 
     # primernames components
     _amplicon_prefix: str
