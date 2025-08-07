@@ -1,3 +1,5 @@
+from typing import Optional
+
 from primalbedtools.bedfiles import BedLine, PrimerClass, group_amplicons
 
 
@@ -20,7 +22,7 @@ class Amplicon:
         self,
         left: list[BedLine],
         right: list[BedLine],
-        probes: list[BedLine] | None = None,
+        probes: Optional[list[BedLine]] = None,
     ):
         self.left = left
         self.right = right
@@ -109,7 +111,7 @@ class Amplicon:
         return f"{self.prefix}_{self.amplicon_number}"
 
     @property
-    def probe_region(self) -> tuple[int, int] | None:
+    def probe_region(self) -> Optional[tuple[int, int]]:
         """
         Returns the half open position of the PROBES (if present).
         """
