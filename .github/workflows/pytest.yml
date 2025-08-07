@@ -14,7 +14,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
-        poetry-version: ["1.8.3"]
         os: [ubuntu-22.04, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
@@ -32,4 +31,4 @@ jobs:
         run: uv sync --locked --all-extras --dev
 
       - name: run tests
-        run: uv run pytest
+        run: uv run --python ${{ matrix.python-version }} pytest
