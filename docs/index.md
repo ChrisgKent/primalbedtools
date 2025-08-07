@@ -1,17 +1,28 @@
-# Welcome to MkDocs
+# Primalbedtools!
 
-For full documentation visit [mkdocs.org](https://www.mkdocs.org).
+This is a low dependency python library for the validation of primerschemes! Mainly the primer.bed and the reference.fasta files. 
 
-## Commands
 
-* `mkdocs new [dir-name]` - Create a new project.
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs -h` - Print help message and exit.
+## Installation 
 
-## Project layout
+Install primalbedtools using pip:
 
-    mkdocs.yml    # The configuration file.
-    docs/
-        index.md  # The documentation homepage.
-        ...       # Other markdown pages, images and other files.
+```bash
+pip install primalbedtools
+```
+
+or conda:
+
+```bash
+conda install bioconda::primalbedtools
+```
+
+or from source (requires uv)
+
+```bash
+git clone https://github.com/ChrisgKent/primalbedtools
+cd primalbedtools 
+uv sync 
+uv run primalbedtools 
+```
+

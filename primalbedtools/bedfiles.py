@@ -2,24 +2,52 @@ import enum
 import pathlib
 import re
 import typing
-from typing import Union
+from typing import Optional, Union
 
-from primalbedtools.utils import expand_ambiguous_bases, rc_seq
+from primalbedtools.utils import expand_ambiguous_bases, rc_seq, strip_all_white_space
 
 # Regular expressions for primer names
-V1_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)(_ALT[0-9]*|_alt[0-9]*)*$"
-V2_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT)_[0-9]+$"
+V1_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT|PROBE)(_ALT[0-9]*|_alt[0-9]*)*$"
+V2_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT|PROBE)_[0-9]+$"
 
 AMPLICON_PREFIX = r"^[a-zA-Z0-9\-]+$"  # any alphanumeric or hyphen
+
 V1_PRIMER_SUFFIX = r"^(ALT[0-9]*|alt[0-9]*)*$"
 
 CHROM_REGEX = r"^[a-zA-Z0-9_.]+$"
+
+PRIMER_WEIGHT_KEY = "pw"
 
 
 class PrimerNameVersion(enum.Enum):
     INVALID = 0
     V1 = 1
     V2 = 2
+
+
+class PrimerClass(enum.Enum):
+    LEFT = "LEFT"
+    RIGHT = "RIGHT"
+    PROBE = "PROBE"
+
+
+class Strand(enum.Enum):
+    FORWARD = "+"
+    REVERSE = "-"
+
+
+def primer_class_str_to_enum(s: str):
+    s = s.upper().strip()
+    if s == "LEFT":
+        return PrimerClass.LEFT
+    elif s == "RIGHT":
+        return PrimerClass.RIGHT
+    elif s == "PROBE":
+        return PrimerClass.PROBE
+
+    raise ValueError(
+        f"unknown primer class str ({s}). Should be ['RIGHT', 'LEFT', 'PROBE']"
+    )
 
 
 def version_primername(primername: str) -> PrimerNameVersion:
@@ -41,31 +69,226 @@ def check_amplicon_prefix(amplicon_prefix: str) -> bool:
     return bool(re.match(AMPLICON_PREFIX, amplicon_prefix))
 
 
-def create_primername(amplicon_prefix, amplicon_number, direction, primer_suffix):
+def check_valid_class_and_strand(cls: str, strand: str) -> bool:
+    """
+    This takes the PrimerClass str (LEFT|RIGHT|PROBE) and the strand str (+|-)
+    and returns True is compatible.
+    """
+    # Probe can be any
+    if cls == PrimerClass.PROBE.value:
+        return True
+    # LEFT primers must be forwards
+    elif cls == PrimerClass.LEFT.value and strand == Strand.FORWARD.value:
+        return True
+    # RIGHT primers must be Reverse
+    elif cls == PrimerClass.RIGHT.value and strand == Strand.REVERSE.value:
+        return True
+    else:
+        return False
+
+
+def parse_headers_to_dict(headers: list[str]) -> dict[str, str]:
+    """
+    parses the header strings into a dict.
+    - Removes the leading # and any padding white space.
+    - splits the header line on the first '=', with the key, value being the left, or right|None
+    """
+    attr_dict = {}
+
+    for header in headers:
+        header = header.rstrip().lstrip()  # remove lr whitespace
+
+        if header.startswith("#"):
+            header = header[1:].lstrip()  # Remove # and any padding
+
+        parts = header.split("=", 1)
+
+        if len(parts) == 1:
+            attr_dict[parts[0].rstrip()] = None
+        else:
+            attr_dict[parts[0].rstrip()] = parts[1]
+
+    return attr_dict
+
+
+def create_primername(
+    amplicon_prefix: str,
+    amplicon_number: int,
+    primer_class: PrimerClass,
+    primer_suffix: Union[str, int, None],
+):
     """
     Creates an unvalidated primername string.
     """
-    values = [amplicon_prefix, str(amplicon_number), direction, primer_suffix]
+    values = [amplicon_prefix, amplicon_number, primer_class.value, primer_suffix]
     return "_".join([str(x) for x in values if x is not None])
 
 
-class StrandEnum(enum.Enum):
-    FORWARD = "+"
-    REVERSE = "-"
+def parse_primer_attributes_str(v: str) -> Optional[dict[str, str]]:
+    new_dict = {}
+
+    white_space_removed = strip_all_white_space(v)
+    if not white_space_removed:
+        return None
+
+    # Check if old style weight is being provided.
+    try:
+        float(white_space_removed)
+        # Parse old weight into a dict
+        white_space_removed = f"{PRIMER_WEIGHT_KEY}={white_space_removed}"
+    except ValueError:
+        pass
+
+    white_space_removed_kv = white_space_removed.split(";")
+    if len(white_space_removed_kv) < 1:
+        return None
+
+    for kv in white_space_removed_kv:
+        # Skip empty lines
+        if not kv:
+            continue
+
+        try:
+            k, v = kv.split("=")
+        except ValueError:
+            raise ValueError(
+                f"Invalid PrimerAttributes: ({kv}). Must be in form k=v"
+            ) from None
+        # Check empty values
+        if not k or not v:
+            raise ValueError(f"Malformed k=v pair: ({kv})")
+        # check dupe
+        if k in new_dict:
+            raise ValueError(f"Duplicate PrimerAttributes Key: ({k})")
+
+        new_dict[k] = v
+
+    # Only return a dict with values
+    return new_dict if new_dict else None
+
+
+def create_primer_attributes_str(
+    primer_attributes: Union[dict[str, Union[str, float]], dict[str, str], None],
+) -> Optional[str]:
+    """
+    Parses the dict into the ';' separated str. Strips all whitespace
+
+    Returns None on empty dict or None
+    """
+    if primer_attributes is None or not primer_attributes:
+        return None
+    return ";".join(
+        f"{strip_all_white_space(k)}={strip_all_white_space(str(v))}"
+        for k, v in primer_attributes.items()
+    )
 
 
 def lr_string_to_strand_char(s: str) -> str:
     """
-    Convert a LEFT/RIGHT string to a StrandEnum.
+    Convert a LEFT/RIGHT string to a Strand.
     """
     parsed_strand = s.upper().strip()
 
     if parsed_strand == "LEFT":
-        return StrandEnum.FORWARD.value
+        return Strand.FORWARD.value
     elif parsed_strand == "RIGHT":
-        return StrandEnum.REVERSE.value
+        return Strand.REVERSE.value
     else:
         raise ValueError(f"Invalid strand: {s}. Must be LEFT or RIGHT")
+
+
+def strand_char_to_primer_class_str(s: str) -> str:
+    if s == Strand.FORWARD.value:
+        return PrimerClass.LEFT.value
+    elif s == Strand.REVERSE.value:
+        return PrimerClass.RIGHT.value
+    else:
+        raise ValueError(f"unknown strand char ({s})")
+
+
+def validate_strand(strand: str) -> str:
+    """
+    Validates and returns the strand. Raises ValueError
+    """
+    try:
+        v = str(strand).strip()
+    except ValueError as e:
+        raise ValueError(f"strand must be a str. Got ({strand})") from e
+
+    if v not in {x.value for x in Strand}:
+        raise ValueError(
+            f"strand must be a str of ({[x.value for x in Strand]}). Got ({v})"
+        )
+    return v
+
+
+def validate_amplicon_prefix(amplicon_prefix: str):
+    """
+    Validates and returns the amplicon_prefix. Raises ValueError
+    """
+    try:
+        v = str(amplicon_prefix).strip()
+    except ValueError as e:
+        raise ValueError(
+            f"amplicon_prefix must be a str. Got ({amplicon_prefix})"
+        ) from e
+
+    if check_amplicon_prefix(v):
+        return v
+    else:
+        raise ValueError(
+            f"Invalid amplicon_prefix: ({v}). Must be alphanumeric or hyphen."
+        )
+
+
+def validate_primer_suffix(
+    primer_suffix: Union[str, int, None],
+) -> Union[str, int, None]:
+    if primer_suffix is None:
+        return None
+    try:
+        # Check for int. (handles _0 format)
+        int_v = int(primer_suffix)
+    except (ValueError, TypeError) as e:
+        # If int() fails _alt format expected
+        if isinstance(primer_suffix, str):
+            if not re.match(V1_PRIMER_SUFFIX, primer_suffix):
+                raise ValueError(
+                    f"Invalid V1 primer_suffix: ({primer_suffix}). Must be `alt[0-9]*` or `ALT[0-9]*`"
+                ) from e
+
+            return primer_suffix
+
+        else:
+            raise ValueError(
+                f"Invalid primer_suffix: ({primer_suffix}). Must be `alt[0-9]*` or `[0-9]`"
+            ) from e
+
+    if int_v < 0:
+        raise ValueError(
+            f"primer_suffix must be greater than or equal to 0. Got ({primer_suffix})"
+        )
+    else:
+        return int_v
+
+
+def validate_primer_name(primername: str) -> tuple[str, str, str, Union[str, None]]:
+    """
+    Validates the structure of the primer Name, and returns the unvalidated components.
+    (Amplicon_prefix, Amplicon_number, Primer_class, Primer_suffix)
+    """
+
+    primername = strip_all_white_space(primername)
+    if version_primername(primername) == PrimerNameVersion.INVALID:
+        raise ValueError(
+            f"Invalid primername: ({primername}). Must be in v1 or v2 format"
+        )
+
+    parts = primername.split("_")
+    if len(parts) == 3:
+        parts.append(None)  # type: ignore
+
+    return (parts[0], parts[1], parts[2], parts[3])
 
 
 class BedLine:
@@ -84,8 +307,8 @@ class BedLine:
         primername (str): Name of the primer in either format v1 or v2
         pool (int): 1-based pool number (use ipool for 0-based pool number)
         strand (str): Strand of the primer ("+" for forward, "-" for reverse)
-        sequence (str): Sequence of the primer (automatically converted to uppercase)
-        weight (float, optional): Weight of the primer for rebalancing, default is None
+        sequence (str): Sequence of the primer
+        attributes (dict[str,str|float], None): Dict of primer attributes (e.g., primerWeights (pw) for rebalancing).
 
     Properties:
         length (int): Length of the primer (end - start)
@@ -118,6 +341,19 @@ class BedLine:
         chr1    100     120     new-scheme_1_LEFT_alt1  1       +       ACGTACGTACGTACGTACGT
     """
 
+    __slots__ = (
+        "_chrom",
+        "_start",
+        "_end",
+        "_pool",
+        "_strand",
+        "_sequence",
+        "_attributes",
+        "_amplicon_prefix",
+        "_amplicon_number",
+        "_primer_class",
+        "_primer_suffix",
+    )
     # properties
     _chrom: str
     _start: int
@@ -126,39 +362,50 @@ class BedLine:
     _pool: int
     _strand: str
     _sequence: str
-    _weight: Union[float, None]
+
+    # primerAttributes
+    _attributes: Optional[dict[str, Union[str, float]]]
 
     # primernames components
     _amplicon_prefix: str
     _amplicon_number: int
+    _primer_class: PrimerClass
     _primer_suffix: Union[int, str, None]
 
     def __init__(
         self,
-        chrom,
-        start,
-        end,
-        primername,
-        pool,
-        strand,
-        sequence,
-        weight=None,
+        chrom: str,
+        start: Union[int, str],
+        end: Union[int, str],
+        primername: str,
+        pool: Union[int, str],
+        strand: str,
+        sequence: str,
+        attributes: Union[dict[str, Union[str, float]], str, None, float] = None,
     ) -> None:
         self.chrom = chrom
         self.start = start
         self.end = end
-        # Check primername-strand + strand match
-        self.primername = primername
-
-        if strand != self.strand:
-            raise ValueError(
-                f"primername ({primername}) implies strand ({self.strand}), which is different to provided ({strand})"
-            )
-
         self.pool = pool
-        self.strand = strand
         self.sequence = sequence
-        self.weight = weight
+        # Set attributes
+        self.attributes = attributes  # Ensure the type matches the expected UnionType
+
+        # use private fields to sidestep primer_class to strand validation
+        self._strand = validate_strand(strand)
+        (
+            self.amplicon_prefix,
+            self.amplicon_number,
+            primer_class,
+            self.primer_suffix,
+        ) = validate_primer_name(primername)
+        self._primer_class = primer_class_str_to_enum(primer_class)
+
+        # Check the primer_class and strand are compatible
+        if not check_valid_class_and_strand(self.primer_class_str, self.strand):
+            raise ValueError(
+                f"primername ({self.primername}) implies direction ({self.primer_class_str}), which is incompatible with ({strand})"
+            )
 
     @property
     def chrom(self):
@@ -210,7 +457,7 @@ class BedLine:
     @property
     def amplicon_name(self) -> str:
         """Return the amplicon name of the primer"""
-        return f"{self.amplicon_number}_{self.amplicon_number}"
+        return f"{self.amplicon_prefix}_{self.amplicon_number}"
 
     @amplicon_number.setter
     def amplicon_number(self, v):
@@ -251,37 +498,27 @@ class BedLine:
 
     @primer_suffix.setter
     def primer_suffix(self, v: Union[int, str, None]):
-        if v is None:
-            self._primer_suffix = None
-            return
+        self._primer_suffix = validate_primer_suffix(v)
 
-        try:
-            # Check for int. (handles _0 format)
-            int_v = int(v)
+    @property
+    def primer_class(self) -> PrimerClass:
+        """Return the PrimerDirection enum"""
+        return self._primer_class
 
-        except (ValueError, TypeError) as e:
-            # If int() fails _alt format expected
-            if isinstance(v, str):
-                if not re.match(V1_PRIMER_SUFFIX, v):
-                    raise ValueError(
-                        f"Invalid V1 primer_suffix: ({v}). Must be `alt[0-9]*` or `ALT[0-9]*`"
-                    ) from e
+    @property
+    def primer_class_str(self) -> str:
+        """Return the string representation of PrimerDirection"""
+        return self._primer_class.value
 
-                self._primer_suffix = v
-
-            else:
-                raise ValueError(
-                    f"Invalid primer_suffix: ({v}). Must be `alt[0-9]*` or `[0-9]`"
-                ) from e
-
-            return
-
-        if int_v < 0:
-            raise ValueError(
-                f"primer_suffix must be greater than or equal to 0. Got ({v})"
-            )
+    @primer_class.setter
+    def primer_class(self, v: str):
+        new_primer_class = primer_class_str_to_enum(v)
+        if check_valid_class_and_strand(new_primer_class.value, self.strand):
+            self._primer_class = new_primer_class
         else:
-            self._primer_suffix = int_v
+            raise ValueError(
+                f"The new primer_class ({new_primer_class.value}) is incompatible with current strand ({self.strand}). Please use method 'force_change' to update both."
+            )
 
     @property
     def primername(self):
@@ -289,12 +526,12 @@ class BedLine:
         return create_primername(
             self.amplicon_prefix,
             self.amplicon_number,
-            self.direction_str,
+            self.primer_class,
             self.primer_suffix,
         )
 
     @primername.setter
-    def primername(self, v):
+    def primername(self, v, new_strand: Optional[str] = None):
         v = v.strip()
         if version_primername(v) == PrimerNameVersion.INVALID:
             raise ValueError(f"Invalid primername: ({v}). Must be in v1 or v2 format")
@@ -304,7 +541,24 @@ class BedLine:
         self.amplicon_prefix = parts[0]
         self.amplicon_number = int(parts[1])
 
-        self.strand = lr_string_to_strand_char(parts[2])
+        # Get primer_class
+        new_primer_class = primer_class_str_to_enum(parts[2])
+        implied_strand: Optional[str] = None
+
+        # if non-ambiguous set strand
+        if new_primer_class != PrimerClass.PROBE:
+            if new_primer_class == PrimerClass.LEFT:
+                implied_strand = Strand.FORWARD.value
+            elif new_primer_class == PrimerClass.RIGHT:
+                implied_strand = Strand.REVERSE.value
+            else:
+                raise ValueError("Unknown strand!")
+
+        # Set the strand and class
+        if new_strand:
+            self.force_change(new_primer_class.value, new_strand)
+        elif implied_strand:
+            self.force_change(new_primer_class.value, implied_strand)
 
         # Try to parse the primer_suffix
         try:
@@ -334,16 +588,14 @@ class BedLine:
 
     @strand.setter
     def strand(self, v):
-        try:
-            v = str(v)
-        except ValueError as e:
-            raise ValueError(f"strand must be a str. Got ({v})") from e
+        new_s = validate_strand(v)
 
-        if v not in {x.value for x in StrandEnum}:
+        if check_valid_class_and_strand(self.primer_class_str, new_s):
+            self._strand = new_s
+        else:
             raise ValueError(
-                f"strand must be a str of ({[x.value for x in StrandEnum]}). Got ({v})"
+                f"The new stand ({new_s}) is incompatible with current primer_class ({self.primer_class_str}). Please use method 'force_change' to update both."
             )
-        self._strand = v
 
     @property
     def sequence(self):
@@ -357,17 +609,58 @@ class BedLine:
         self._sequence = v.upper()
 
     @property
+    def attributes(self):
+        """Returns the primer attributes"""
+        return self._attributes
+
+    @attributes.setter
+    def attributes(
+        self, v: Optional[Union[dict[str, Union[str, float]], str, float]]
+    ) -> None:
+        # Parse string
+        if isinstance(v, str):
+            new_dict = parse_primer_attributes_str(v)
+        # parse dict
+        elif isinstance(v, dict):
+            new_dict = v
+        elif v is None:
+            self._attributes = None
+            return
+        else:
+            raise ValueError(f"Invalid primer attributes. Got ({v})")
+
+        if new_dict is None:
+            self._attributes = None
+            return
+
+        # Parse the new dict
+        parsed_dict: dict[str, Union[str, float]] = {
+            strip_all_white_space(str(k)): strip_all_white_space(str(v))
+            for k, v in new_dict.items()
+        }
+
+        self._attributes = parsed_dict
+
+        # Call to primer weight setter to validate
+        if PRIMER_WEIGHT_KEY in parsed_dict:
+            self.weight = parsed_dict[PRIMER_WEIGHT_KEY]
+
+    @property
     def weight(self):
-        """Return the weight of the primer"""
-        return self._weight
+        """Return the weight of the primer from the attributes dict"""
+        if self._attributes is None:
+            return None
+        return self._attributes.get(PRIMER_WEIGHT_KEY)
 
     @weight.setter
     def weight(self, v: Union[float, str, int, None]):
         # Catch Empty and None
         if v is None or v == "":
-            self._weight = None
+            if self._attributes is None:
+                return
+            # remove pw from the attributes
+            self._attributes.pop(PRIMER_WEIGHT_KEY, None)
             return
-
         try:
             v = float(v)
         except (ValueError, TypeError) as e:
@@ -376,12 +669,32 @@ class BedLine:
             ) from e
         if v < 0:
             raise ValueError(f"weight must be greater than or equal to 0. Got ({v})")
-        self._weight = v
+
+        # Set primerWeights as pw in self._attributes
+        if self._attributes is None:
+            self._attributes = {}
+        self._attributes[PRIMER_WEIGHT_KEY] = v
+
+    # methods
+    def force_change(self, primer_class: str, strand: str):
+        """
+        Updates compatible primerclass and strand simultaneously.
+        """
+        new_primer_class = primer_class_str_to_enum(primer_class)
+        new_s = validate_strand(strand)
+
+        if check_valid_class_and_strand(new_primer_class.value, new_s):
+            self._primer_class = new_primer_class
+            self._strand = new_s
+        else:
+            raise ValueError(
+                f"The new primer_class ({new_primer_class.value}) is incompatible with current strand ({self.strand})."
+            )
 
     # calculated properties
     @property
     def length(self):
-        """Return the index length of the primer"""
+        """Return the length of the primer"""
         return self.end - self.start
 
     @property
@@ -396,13 +709,18 @@ class BedLine:
     @property
     def direction_str(self) -> str:
         """Return 'LEFT' or 'RIGHT' based on strand"""
-        return "LEFT" if self.strand == StrandEnum.FORWARD.value else "RIGHT"
+        return "LEFT" if self.strand == Strand.FORWARD.value else "RIGHT"
 
     def to_bed(self) -> str:
         """Convert the BedLine object to a BED formatted string."""
-        # If a weight is provided print. Else print empty string
-        weight_str = "" if self.weight is None else f"\t{self.weight}"
-        return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}{weight_str}\n"
+        # If a attributes is provided print. Else print empty string
+
+        attribute_str = create_primer_attributes_str(self.attributes)
+        if attribute_str is None:
+            attribute_str = ""
+        else:
+            attribute_str = "\t" + attribute_str
+        return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}{attribute_str}\n"
 
     def to_fasta(self, rc=False) -> str:
         """Convert the BedLine object to a FASTA formatted string."""
@@ -536,9 +854,9 @@ def create_bedline(bedline: list[str]) -> BedLine:
     """
     try:
         if len(bedline) < 8:
-            weight = None
+            attributes = None
         else:
-            weight = float(bedline[7])
+            attributes = bedline[7]
 
         return BedLine(
             chrom=bedline[0],
@@ -548,7 +866,7 @@ def create_bedline(bedline: list[str]) -> BedLine:
             pool=bedline[4],
             strand=bedline[5],
             sequence=bedline[6],
-            weight=weight,
+            attributes=attributes,
         )
     except IndexError as a:
         raise IndexError(
@@ -677,6 +995,32 @@ def group_by_strand(list_bedlines: list[BedLine]) -> dict[str, list[BedLine]]:
     return bedlines_dict
 
 
+def group_by_class(
+    list_bedlines: list[BedLine],
+) -> dict[str, list[BedLine]]:
+    """Groups a list of BedLine objects by primer class.
+
+    Takes a list of BedLine objects and organizes them into a dictionary
+    where keys are class values and values are lists of
+    BedLine objects in that class.
+
+    Args:
+        list_bedlines: A list of BedLine objects to group.
+
+    Returns:
+        dict[str, list[BedLine]]: A dictionary mapping class values (str)
+            to lists of BedLine objects.
+
+    """
+    bedlines_dict = {}
+    for bedline in list_bedlines:
+        if bedline.primer_class_str not in bedlines_dict:
+            bedlines_dict[bedline.primer_class_str] = []
+        bedlines_dict[bedline.primer_class_str].append(bedline)
+
+    return bedlines_dict
+
+
 def group_by_pool(
     list_bedlines: list[BedLine],
 ) -> dict[int, list[BedLine]]:
@@ -705,7 +1049,7 @@ def group_by_pool(
 def group_primer_pairs(
     bedlines: list[BedLine],
 ) -> list[tuple[list[BedLine], list[BedLine]]]:
-    """Groups BedLine objects into primer pairs by chromosome and amplicon number.
+    """Groups Primer BedLine objects into primer pairs by chromosome and amplicon number.
 
     This function takes a list of BedLine objects and groups them based on chromosome
     and amplicon number. For each group, it creates a tuple containing the forward
@@ -728,13 +1072,43 @@ def group_primer_pairs(
             chrom_bedlines
         ).values():
             # Generate primer pairs
-            strand_to_bedlines = group_by_strand(amplicon_number_bedlines)
+            strand_to_bedlines = group_by_class(amplicon_number_bedlines)
             primer_pairs.append(
                 (
-                    strand_to_bedlines.get(StrandEnum.FORWARD.value, []),
-                    strand_to_bedlines.get(StrandEnum.REVERSE.value, []),
+                    strand_to_bedlines.get(PrimerClass.LEFT.value, []),
+                    strand_to_bedlines.get(PrimerClass.RIGHT.value, []),
                 )
             )
+
+    return primer_pairs
+
+
+def group_amplicons(
+    bedlines: list[BedLine],
+) -> list[dict[str, list[BedLine]]]:
+    """Groups all (including PROBES) BedLine objects into amplicons by chromosome and amplicon number.
+
+    This function takes a list of BedLine objects and groups them based on chromosome
+    and amplicon number. For each amplicon number, it creates a dict containing the LEFT,
+    PROBE, and RIGHT as the keys pointing to a list of corresponding Bedlines.
+
+    Args:
+        bedlines: A list of BedLine objects to group into primer pairs.
+
+    Returns:
+        A list of dicts, with the key being the primer class string, and value a list of BedLines.
+
+    """
+    primer_pairs = []
+
+    # Group by chrom
+    for chrom_bedlines in group_by_chrom(bedlines).values():
+        # Group by amplicon number
+        for amplicon_number_bedlines in group_by_amplicon_number(
+            chrom_bedlines
+        ).values():
+            # Generate primer pairs
+            primer_pairs.append(group_by_class(amplicon_number_bedlines))
 
     return primer_pairs
 
@@ -743,23 +1117,28 @@ def update_primernames(bedlines: list[BedLine]) -> list[BedLine]:
     """
     Update primer names to v2 format in place.
     """
-    # group the bedlines into primerpairs
-    primer_pairs = group_primer_pairs(bedlines)
+    # group the bedlines into Amplicons
+    primer_pairs = group_amplicons(bedlines)
 
     # Update the primer names
-    for fbedlines, rbedlines in primer_pairs:
-        # Sort the bedlines by sequence
-        fbedlines.sort(key=lambda x: x.sequence)
-        for i, bedline in enumerate(fbedlines, start=1):
-            bedline.primername = (
-                f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_LEFT_{i}"
-            )
+    for dicts in primer_pairs:
+        # left primer
+        lp = dicts.get(PrimerClass.LEFT.value, [])
+        lp.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(lp, start=1):
+            bedline.primername = f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_{PrimerClass.LEFT.value}_{i}"
 
-        rbedlines.sort(key=lambda x: x.sequence)
-        for i, bedline in enumerate(rbedlines, start=1):
-            bedline.primername = (
-                f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_RIGHT_{i}"
-            )
+        # probes
+        pp = dicts.get(PrimerClass.PROBE.value, [])
+        pp.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(pp, start=1):
+            bedline.primername = f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_{PrimerClass.PROBE.value}_{i}"
+
+        # right primers
+        rp = dicts.get(PrimerClass.RIGHT.value, [])
+        rp.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(rp, start=1):
+            bedline.primername = f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_{PrimerClass.RIGHT.value}_{i}"
 
     return bedlines
 
@@ -768,22 +1147,22 @@ def downgrade_primernames(bedlines: list[BedLine]) -> list[BedLine]:
     """
     Downgrades primer names to v1 format in place.
     """
-    # group the bedlines into primerpairs
+    # group the bedlines into Amplicons
     primer_pairs = group_primer_pairs(bedlines)
 
     # Update the primer names
-    for fbedlines, rbedlines in primer_pairs:
+    for left, right in primer_pairs:
         # Sort the bedlines by sequence
-        fbedlines.sort(key=lambda x: x.sequence)
-        for i, bedline in enumerate(fbedlines, start=1):
-            alt = "" if i == 1 else f"_alt{i-1}"
+        left.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(left, start=1):
+            alt = "" if i == 1 else f"_alt{i - 1}"
             bedline.primername = (
                 f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_LEFT{alt}"
             )
 
-        rbedlines.sort(key=lambda x: x.sequence)
-        for i, bedline in enumerate(rbedlines, start=1):
-            alt = "" if i == 1 else f"_alt{i-1}"
+        right.sort(key=lambda x: x.sequence)
+        for i, bedline in enumerate(right, start=1):
+            alt = "" if i == 1 else f"_alt{i - 1}"
             bedline.primername = (
                 f"{bedline.amplicon_prefix}_{bedline.amplicon_number}_RIGHT{alt}"
             )
@@ -795,66 +1174,89 @@ def sort_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
     """
     Sorts bedlines by chrom, start, end, primername.
     """
-    primerpairs = group_primer_pairs(bedlines)
-    primerpairs.sort(key=lambda x: (x[0][0].chrom, x[0][0].amplicon_number))
+    amplicons = group_amplicons(bedlines)
+    amplicons.sort(
+        key=lambda x: (
+            x[PrimerClass.LEFT.value][0].chrom,
+            x[PrimerClass.LEFT.value][0].amplicon_number,
+        )
+    )  # Uses left primers
 
-    for fps, rps in primerpairs:
-        fps.sort(
+    # Sorted list
+    sorted_list = []
+
+    for dicts in amplicons:
+        # Left primers
+        lp = dicts.get(PrimerClass.LEFT.value, [])
+        lp.sort(
             key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
         )
-        rps.sort(
+        sorted_list.extend(lp)
+
+        # Probes
+        pp = dicts.get(PrimerClass.PROBE.value, [])
+        pp.sort(
             key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
         )
+        sorted_list.extend(pp)
 
-    return [
-        bedline
-        for fbedlines, rbedlines in primerpairs
-        for bedline in fbedlines + rbedlines
-    ]
+        # Right Primers
+        rp = dicts.get(PrimerClass.RIGHT.value, [])
+        rp.sort(
+            key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
+        )
+        sorted_list.extend(rp)
+
+    return sorted_list
 
 
-def merge_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
+def merge_primers(bedlines: list[BedLine]) -> list[BedLine]:
     """
-    merges bedlines with the same chrom, amplicon number and direction.
+    merges bedlines with the same chrom, amplicon number and class.
     """
     merged_bedlines = []
 
-    for fbedlines, rbedlines in group_primer_pairs(bedlines):
+    for pdict in group_amplicons(bedlines):
         # Merge forward primers
-        if fbedlines:
-            fbedline_start = min([bedline.start for bedline in fbedlines])
-            fbedline_end = max([bedline.end for bedline in fbedlines])
-            fbedline_sequence = max(
-                [bedline.sequence for bedline in fbedlines], key=len
-            )
+        left = pdict.get(PrimerClass.LEFT.value, [])
+        if left:
+            fbedline_start = min([bedline.start for bedline in left])
+            fbedline_end = max([bedline.end for bedline in left])
+            fbedline_sequence = max([bedline.sequence for bedline in left], key=len)
             merged_bedlines.append(
                 BedLine(
-                    chrom=fbedlines[0].chrom,
+                    chrom=left[0].chrom,
                     start=fbedline_start,
                     end=fbedline_end,
-                    primername=f"{fbedlines[0].amplicon_prefix}_{fbedlines[0].amplicon_number}_LEFT_1",
-                    pool=fbedlines[0].pool,
-                    strand=StrandEnum.FORWARD.value,
+                    primername=f"{left[0].amplicon_prefix}_{left[0].amplicon_number}_{PrimerClass.LEFT.value}_1",
+                    pool=left[0].pool,
+                    strand=Strand.FORWARD.value,
                     sequence=fbedline_sequence,
                 )
             )
 
-        # Merge reverse primers
-        if rbedlines:
-            rbedline_start = min([bedline.start for bedline in rbedlines])
-            rbedline_end = max([bedline.end for bedline in rbedlines])
-            rbedline_sequence = max(
-                [bedline.sequence for bedline in rbedlines], key=len
+        # Merge probes
+        probes = pdict.get(PrimerClass.PROBE.value, [])
+        if probes:
+            raise ValueError(
+                f"can't merge schemes containing probes ({[p.primername for p in probes]})"
             )
+
+        # Merge reverse primers
+        right = pdict.get(PrimerClass.RIGHT.value, [])
+        if right:
+            rbedline_start = min([bedline.start for bedline in right])
+            rbedline_end = max([bedline.end for bedline in right])
+            rbedline_sequence = max([bedline.sequence for bedline in right], key=len)
 
             merged_bedlines.append(
                 BedLine(
-                    chrom=rbedlines[0].chrom,
+                    chrom=right[0].chrom,
                     start=rbedline_start,
                     end=rbedline_end,
-                    primername=f"{rbedlines[0].amplicon_prefix}_{rbedlines[0].amplicon_number}_RIGHT_1",
-                    pool=rbedlines[0].pool,
-                    strand=StrandEnum.REVERSE.value,
+                    primername=f"{right[0].amplicon_prefix}_{right[0].amplicon_number}_{PrimerClass.RIGHT.value}_1",
+                    pool=right[0].pool,
+                    strand=Strand.REVERSE.value,
                     sequence=rbedline_sequence,
                 )
             )
@@ -879,7 +1281,7 @@ def expand_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
                     pool=bedline.pool,
                     strand=bedline.strand,
                     sequence=expand_seq,
-                    weight=bedline.weight,
+                    attributes=bedline.attributes,
                 )
             )
     # update the bedfile names
@@ -902,7 +1304,7 @@ class BedFileModifier:
         """Updates primer names to v2 format in place.
 
         Converts all primer names in the provided BedLine objects to the v2 format
-        (prefix_number_DIRECTION_index). Groups primers by chromosome and amplicon
+        (prefix_number_class_index). Groups primers by chromosome and amplicon
         number, then updates each group.
 
         Args:
@@ -925,7 +1327,7 @@ class BedFileModifier:
         """Downgrades primer names to v1 format in place.
 
         Converts all primer names in the provided BedLine objects to the v1 format
-        (prefix_number_DIRECTION_ALT). Groups primers by chromosome and amplicon
+        (prefix_number_class_ALT). Groups primers by chromosome and amplicon
         number, then updates each group.
 
         Args:
@@ -936,7 +1338,7 @@ class BedFileModifier:
         """
         if merge_alts:
             # Merge the alt primers
-            bedlines = merge_bedlines(bedlines)
+            bedlines = merge_primers(bedlines)
         # Downgrade the primer names
         return downgrade_primernames(bedlines)
 
@@ -944,7 +1346,7 @@ class BedFileModifier:
     def sort_bedlines(
         bedlines: list[BedLine],
     ) -> list[BedLine]:
-        """Sorts the bedlines by chrom, amplicon number, direction, and sequence.
+        """Sorts the bedlines by chrom, amplicon number, class, and sequence.
 
         Groups BedLine objects into primer pairs, sorts those pairs by chromosome
         and amplicon number, then returns a flattened list of the sorted BedLine objects.
@@ -963,10 +1365,10 @@ class BedFileModifier:
         return sort_bedlines(bedlines)
 
     @staticmethod
-    def merge_bedlines(
+    def merge_primers(
         bedlines: list[BedLine],
     ) -> list[BedLine]:
-        """Merges bedlines with the same chrom, amplicon number and direction.
+        """Merges bedlines with the same chrom, amplicon number and class.
 
         Groups BedLine objects into primer pairs, then for each forward and reverse
         group, creates a merged BedLine with:
@@ -984,6 +1386,6 @@ class BedFileModifier:
         Examples:
             >>> from primalbedtools.bedfiles import BedLine, BedFileModifier
             >>> bedlines = [BedLine(...)]  # List of BedLine objects
-            >>> merged_lines = BedFileModifier.merge_bedlines(bedlines)
+            >>> merged_lines = BedFileModifier.merge_primers(bedlines)
         """
-        return merge_bedlines(bedlines)
+        return merge_primers(bedlines)

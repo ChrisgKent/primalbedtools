@@ -1,37 +1,37 @@
+from primalbedtools.amplicons import Amplicon, create_amplicons, do_pp_ol
 from primalbedtools.bedfiles import BedLine, BedLineParser
 from primalbedtools.fasta import read_fasta
-from primalbedtools.primerpairs import PrimerPair, create_primerpairs, do_pp_ol
 
 
-def find_for_ol_in_pool(bedlines: list[BedLine]) -> set[tuple[PrimerPair, PrimerPair]]:
+def find_for_ol_in_pool(bedlines: list[BedLine]) -> set[tuple[Amplicon, Amplicon]]:
     """
     Sorts each bedline into its pool, and checks for overlap using the indexes.
     """
-    # Create primerpairs
-    primerpairs = create_primerpairs(bedlines)
+    # Create Amplicons
+    amplicons = create_amplicons(bedlines)
 
     # keep track of each pp region
     regions = dict()
     # Get each
-    for primerpair in primerpairs:
+    for amplicon in amplicons:
         # Add chrom
-        if primerpair.chrom not in regions:
-            regions[primerpair.chrom] = dict()
+        if amplicon.chrom not in regions:
+            regions[amplicon.chrom] = dict()
 
         # Add pool
-        if primerpair.pool not in regions[primerpair.chrom]:
-            regions[primerpair.chrom][primerpair.pool] = []
+        if amplicon.pool not in regions[amplicon.chrom]:
+            regions[amplicon.chrom][amplicon.pool] = []
 
         # Add primer pair
-        regions[primerpair.chrom][primerpair.pool].append(primerpair)
+        regions[amplicon.chrom][amplicon.pool].append(amplicon)
 
     ols = set()
 
     # For each check for ol
     for _chrom, pools in regions.items():
-        for _pool, primerpairs in pools.items():
-            for pp1 in primerpairs:
-                for pp2 in primerpairs:
+        for _pool, amplicons in pools.items():
+            for pp1 in amplicons:
+                for pp2 in amplicons:
                     # Ignore self ol
                     if pp1 == pp2:
                         continue

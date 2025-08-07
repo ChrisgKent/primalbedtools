@@ -1,8 +1,16 @@
+import pathlib
 import unittest
 
+from primalbedtools.amplicons import Amplicon
 from primalbedtools.bedfiles import BedLine
-from primalbedtools.primerpairs import PrimerPair
-from primalbedtools.validate import do_pp_ol, validate_primerbed, validate_ref_and_bed
+from primalbedtools.validate import (
+    do_pp_ol,
+    validate,
+    validate_primerbed,
+    validate_ref_and_bed,
+)
+
+FASTA_PATH = pathlib.Path(__file__).parent / "inputs/msa.input.fasta"
 
 
 class TestValidate(unittest.TestCase):
@@ -44,12 +52,12 @@ class TestValidate(unittest.TestCase):
             sequence="ACGT",
         )
 
-        self.fasta_path = "tests/msa.input.fasta"
+        self.fasta_path = str(FASTA_PATH.absolute())
         return super().setUp()
 
     def test_do_pp_ol(self):
-        pp1 = PrimerPair([self.fbl1], [self.rbl1])
-        pp2 = PrimerPair([self.fbl2], [self.rbl2])
+        pp1 = Amplicon([self.fbl1], [self.rbl1])
+        pp2 = Amplicon([self.fbl2], [self.rbl2])
 
         # Detect ol
         self.assertTrue(do_pp_ol(pp1, pp2))
@@ -193,6 +201,10 @@ class TestValidate(unittest.TestCase):
         self.assertIn(
             "chroms in primer.bed are not in reference.fasta", str(cm.exception)
         )
+
+    def test_validate(self):
+        """Test validate with files"""
+        validate("tests/inputs/primer.bed", "tests/inputs/reference.fasta")
 
 
 if __name__ == "__main__":

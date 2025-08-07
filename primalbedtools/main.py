@@ -1,11 +1,11 @@
 import argparse
 
+from primalbedtools.amplicons import create_amplicons
 from primalbedtools.bedfiles import (
     BedFileModifier,
     BedLineParser,
 )
 from primalbedtools.fasta import read_fasta
-from primalbedtools.primerpairs import create_primerpairs
 from primalbedtools.remap import remap
 from primalbedtools.validate import validate, validate_primerbed
 
@@ -76,6 +76,9 @@ def main():
         default=False,
         action="store_true",
     )
+    # format
+    format_parser = subparsers.add_parser("format", help="Format a bed file")
+    format_parser.add_argument("bed", type=str, help="Input BED file")
 
     args = parser.parse_args()
 
@@ -90,17 +93,17 @@ def main():
     elif args.subparser_name == "update":
         bedlines = BedFileModifier.update_primernames(bedlines)
     elif args.subparser_name == "amplicon":
-        primerpairs = create_primerpairs(bedlines)
+        amplicons = create_amplicons(bedlines)
 
         # Print the amplicons
-        for primerpair in primerpairs:
+        for amplicon in amplicons:
             if args.primertrim:
-                print(primerpair.to_primertrim_str())
+                print(amplicon.to_primertrim_str())
             else:
-                print(primerpair.to_amplicon_str())
+                print(amplicon.to_amplicon_str())
         exit(0)  # Exit early
     elif args.subparser_name == "merge":
-        bedlines = BedFileModifier.merge_bedlines(bedlines)
+        bedlines = BedFileModifier.merge_primers(bedlines)
     elif args.subparser_name == "fasta":
         for line in bedlines:
             print(line.to_fasta(), end="")
@@ -120,6 +123,9 @@ def main():
             bedlines=bedlines, merge_alts=args.merge_alts
         )
         _headers = []  # remove headers
+
+    elif args.subparser_name == "format":
+        pass
     else:
         parser.print_help()
 

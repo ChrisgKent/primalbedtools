@@ -1,33 +1,45 @@
-from primalbedtools.bedfiles import BedLine, group_primer_pairs
+from primalbedtools.bedfiles import BedLine, PrimerClass, group_amplicons
 
 
-class PrimerPair:
+class Amplicon:
     """
-    A PrimerPair object represents an amplicon with forward and reverse primers.
+    A Amplicon object represents an PCR amplicon with forward and reverse primers, and optional probes
 
     """
 
-    fbedlines: list[BedLine]
-    rbedlines: list[BedLine]
+    left: list[BedLine]
+    right: list[BedLine]
+    probes: list[BedLine]
 
     chrom: str
     pool: int
     amplicon_number: int
     prefix: str
 
-    def __init__(self, fbedlines: list[BedLine], rbedlines: list[BedLine]):
-        self.fbedlines = fbedlines
-        self.rbedlines = rbedlines
+    def __init__(
+        self,
+        left: list[BedLine],
+        right: list[BedLine],
+        probes: list[BedLine] | None = None,
+    ):
+        self.left = left
+        self.right = right
 
-        all_lines = fbedlines + rbedlines
+        if probes is None:
+            probes = []
+        self.probes = probes
+
+        all_lines = left + right + probes
 
         # All prefixes must be the same
         prefixes = set([bedline.amplicon_prefix for bedline in all_lines])
+        prefixes = sorted(prefixes)
+
         if len(prefixes) != 1:
             print(
-                f"All bedlines must have the same prefix ({','.join(prefixes)}). Using the first one."
+                f"All bedlines must have the same prefix ({','.join(prefixes)}). Using the alphanumerically first one ({prefixes[0]})."
             )
-        self.prefix = sorted(prefixes)[0]
+        self.prefix = prefixes[0]
 
         # Check all chrom are the same
         chroms = set([bedline.chrom for bedline in all_lines])
@@ -52,11 +64,11 @@ class PrimerPair:
         self.amplicon_number = amplicon_numbers.pop()
 
         # Check both forward and reverse primers are present
-        if not self.fbedlines:
+        if not self.left:
             raise ValueError(
                 f"No forward primers found for {self.prefix}_{self.amplicon_number}"
             )
-        if not self.rbedlines:
+        if not self.right:
             raise ValueError(
                 f"No reverse primers found for {self.prefix}_{self.amplicon_number}"
             )
@@ -69,32 +81,55 @@ class PrimerPair:
     @property
     def is_circular(self) -> bool:
         """Check if the amplicon is circular"""
-        return self.fbedlines[0].end > self.rbedlines[0].start
+        return self.left[0].end > self.right[0].start
 
     @property
     def amplicon_start(self) -> int:
         """Return the smallest start of the amplicon"""
-        return min(self.fbedlines, key=lambda x: x.start).start
+        return min(self.left, key=lambda x: x.start).start
 
     @property
     def amplicon_end(self) -> int:
         """Return the largest end of the amplicon"""
-        return max(self.rbedlines, key=lambda x: x.end).end
+        return max(self.right, key=lambda x: x.end).end
 
     @property
     def coverage_start(self) -> int:
         """Return the first base of coverage"""
-        return max(self.fbedlines, key=lambda x: x.end).end
+        return max(self.left, key=lambda x: x.end).end
 
     @property
     def coverage_end(self) -> int:
         """Return the last base of coverage"""
-        return min(self.rbedlines, key=lambda x: x.start).start
+        return min(self.right, key=lambda x: x.start).start
 
     @property
     def amplicon_name(self) -> str:
         """Return the name of the amplicon"""
         return f"{self.prefix}_{self.amplicon_number}"
+
+    @property
+    def probe_region(self) -> tuple[int, int] | None:
+        """
+        Returns the half open position of the PROBES (if present).
+        """
+        if not self.probes:
+            return None
+        return (min(p.start for p in self.probes), max(p.end for p in self.probes))
+
+    @property
+    def left_region(self) -> tuple[int, int]:
+        """
+        Returns the half open position of the LEFT primers
+        """
+        return (min(lp.start for lp in self.left), max(lp.end for lp in self.left))
+
+    @property
+    def right_region(self) -> tuple[int, int]:
+        """
+        Returns the half open position of the RIGHT primers
+        """
+        return (min(rp.start for rp in self.right), max(rp.end for rp in self.right))
 
     def to_amplicon_str(self) -> str:
         """Return the amplicon as a string in bed format"""
@@ -105,19 +140,25 @@ class PrimerPair:
         return f"{self.chrom}\t{self.coverage_start}\t{self.coverage_end}\t{self.amplicon_name}\t{self.pool}"
 
 
-def create_primerpairs(bedlines: list[BedLine]) -> list[PrimerPair]:
+def create_amplicons(bedlines: list[BedLine]) -> list[Amplicon]:
     """
-    Group bedlines into PrimerPair objects
+    Group bedlines into Amplicon objects
     """
-    grouped_bedlines = group_primer_pairs(bedlines)
+    grouped_bedlines = group_amplicons(bedlines)
     primer_pairs = []
-    for fbedlines, rbedlines in grouped_bedlines:
-        primer_pairs.append(PrimerPair(fbedlines, rbedlines))
+    for pdict in grouped_bedlines:
+        primer_pairs.append(
+            Amplicon(
+                left=pdict.get(PrimerClass.LEFT.value, []),
+                right=pdict.get(PrimerClass.RIGHT.value, []),
+                probes=pdict.get(PrimerClass.PROBE.value, []),
+            )
+        )
 
     return primer_pairs
 
 
-def do_pp_ol(pp1: PrimerPair, pp2: PrimerPair) -> bool:
+def do_pp_ol(pp1: Amplicon, pp2: Amplicon) -> bool:
     if range(
         max(pp1.amplicon_start, pp2.amplicon_start),
         min(pp1.amplicon_end, pp2.amplicon_end) + 1,

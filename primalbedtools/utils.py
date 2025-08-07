@@ -70,3 +70,8 @@ def complement_seq(seq: str) -> str:
     Complement a DNA sequence.
     """
     return "".join(AMBIGUOUS_DNA_COMPLEMENT[base] for base in seq)
+
+
+def strip_all_white_space(s: str) -> str:
+    """Strips any whitespace"""
+    return "".join(s.split())

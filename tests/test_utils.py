@@ -1,6 +1,11 @@
 import unittest
 
-from primalbedtools.utils import complement_seq, expand_ambiguous_bases, rc_seq
+from primalbedtools.utils import (
+    complement_seq,
+    expand_ambiguous_bases,
+    rc_seq,
+    strip_all_white_space,
+)
 
 
 class TestValidate(unittest.TestCase):
@@ -36,3 +41,8 @@ class TestValidate(unittest.TestCase):
         # Text non dna characters are raised
         with self.assertRaises(KeyError):
             expand_ambiguous_bases("ACGT/3SpC3/")
+
+    def test_strip_all_white_space(self):
+        self.assertEqual("", strip_all_white_space("\t"))
+        self.assertEqual("", strip_all_white_space(" "))
+        self.assertEqual("", strip_all_white_space("    "))

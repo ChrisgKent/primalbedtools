@@ -4,29 +4,41 @@ import random
 import unittest
 
 from primalbedtools.bedfiles import (
+    PRIMER_WEIGHT_KEY,
     BedLine,
     BedLineParser,
+    PrimerClass,
     PrimerNameVersion,
+    Strand,
     create_bedfile_str,
     create_bedline,
+    create_primer_attributes_str,
     downgrade_primernames,
     expand_bedlines,
     group_by_amplicon_number,
     group_by_chrom,
+    group_by_class,
     group_by_pool,
     group_by_strand,
     lr_string_to_strand_char,
-    merge_bedlines,
+    merge_primers,
+    parse_headers_to_dict,
+    parse_primer_attributes_str,
+    primer_class_str_to_enum,
     read_bedfile,
     sort_bedlines,
+    strand_char_to_primer_class_str,
     update_primernames,
     version_primername,
     write_bedfile,
 )
 
-TEST_BEDFILE = pathlib.Path(__file__).parent / "test.bed"
-TEST_V2_BEDFILE = pathlib.Path(__file__).parent / "test.v2.bed"
-TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "test.weights.bed"
+TEST_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.bed"
+TEST_V2_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.v2.bed"
+TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.weights.bed"
+TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.weights.bed"
+TEST_ATTRIBUTES_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.attributes.bed"
+TEST_PROBE_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.probe.bed"
 
 
 class TestValidationFuncs(unittest.TestCase):
@@ -39,6 +51,146 @@ class TestValidationFuncs(unittest.TestCase):
         with self.assertRaises(ValueError):
             lr_string_to_strand_char("")
 
+    def test_primer_class_str_to_enum(self):
+        self.assertEqual(primer_class_str_to_enum("LEFT"), PrimerClass.LEFT)
+        self.assertEqual(primer_class_str_to_enum("RIGHT"), PrimerClass.RIGHT)
+        self.assertEqual(primer_class_str_to_enum("PROBE"), PrimerClass.PROBE)
+
+        # Check unexpected
+        with self.assertRaises(ValueError):
+            primer_class_str_to_enum("")
+
+    def test_strand_char_to_primer_class_str(self):
+        self.assertEqual(strand_char_to_primer_class_str("+"), "LEFT")
+        self.assertEqual(strand_char_to_primer_class_str("-"), "RIGHT")
+        # Check unexpected
+        with self.assertRaises(ValueError):
+            strand_char_to_primer_class_str("")
+
+
+class TestHeader(unittest.TestCase):
+    def test_parse_headers_to_dict_simple(self):
+        headers, _bedlines = read_bedfile(TEST_ATTRIBUTES_BEDFILE)
+
+        attr_dict = parse_headers_to_dict(headers)
+        self.assertDictEqual(
+            attr_dict,
+            {"MN908947.3": "sars-cov-2", "examplescheme": None, "gc": "fractiongc"},
+        )
+
+    def test_parse_headers_to_dict_probe(self):
+        headers, _bedlines = read_bedfile(TEST_PROBE_BEDFILE)
+
+        attr_dict = parse_headers_to_dict(headers)
+        self.assertDictEqual(
+            attr_dict,
+            {
+                "/3BHQ_1/": "BlackHoleQuencher1",
+                "/56-FAM/": "FAM",
+                "/5HEX/": "HEX",
+                "example multiplexed-qPCR assay": None,
+            },
+        )
+
+
+class TestAttributesFuncs(unittest.TestCase):
+    def test_parse_primer_attributes_str_valid(self):
+        # Valid str simple
+        primer_attr = "pw=1"
+        result = parse_primer_attributes_str(primer_attr)
+        assert result is not None
+        self.assertDictEqual(result, {PRIMER_WEIGHT_KEY: "1"})
+
+        # valid multi
+        primer_attr = "pw=1;ps=100;s=1"
+        result = parse_primer_attributes_str(primer_attr)
+        assert result is not None
+        self.assertDictEqual(result, {"s": "1", PRIMER_WEIGHT_KEY: "1", "ps": "100"})
+
+        # semi valid multi
+        primer_attr = ";pw=1;ps=100;s=1;"
+        result = parse_primer_attributes_str(primer_attr)
+        assert result is not None
+        self.assertDictEqual(result, {"s": "1", PRIMER_WEIGHT_KEY: "1", "ps": "100"})
+
+        # Test whitespace + semi valid
+        primer_attr = "; pw= 1;p s=100;s=1;"
+        result = parse_primer_attributes_str(primer_attr)
+        assert result is not None
+        self.assertDictEqual(result, {"s": "1", PRIMER_WEIGHT_KEY: "1", "ps": "100"})
+
+        # Test legacy weight
+        primer_attr = "1.0"
+        result = parse_primer_attributes_str(primer_attr)
+        assert result is not None
+        self.assertDictEqual(result, {PRIMER_WEIGHT_KEY: "1.0"})
+
+    def test_parse_primer_attributes_str_invalid(self):
+        # error ;
+        primer_attr = ";"
+        result = parse_primer_attributes_str(primer_attr)
+        self.assertIsNone(result)
+
+        # empty
+        primer_attr = " "
+        result = parse_primer_attributes_str(primer_attr)
+        self.assertIsNone(result)
+
+        # error malformed
+        primer_attr = "pw="
+        with self.assertRaises(ValueError) as context:
+            parse_primer_attributes_str(primer_attr)
+        self.assertIn("Malformed k=v pair:", str(context.exception))
+
+        # error wrong form
+        primer_attr = "pw1"
+        with self.assertRaises(ValueError) as context:
+            parse_primer_attributes_str(primer_attr)
+        self.assertIn("Invalid PrimerAttributes:", str(context.exception))
+
+        # error duplicate keys
+        primer_attr = "pw=1;pw=2"
+        with self.assertRaises(ValueError) as context:
+            parse_primer_attributes_str(primer_attr)
+        self.assertIn("Duplicate PrimerAttributes Key:", str(context.exception))
+
+    def test_create_primer_attributes_str(self):
+        # None case
+        self.assertIsNone(create_primer_attributes_str(None))
+        # empty dict
+        self.assertIsNone(create_primer_attributes_str({}))
+        # test valid single
+        attr_str = create_primer_attributes_str({PRIMER_WEIGHT_KEY: "1"})
+        self.assertEqual(attr_str, "pw=1")
+        # test valid multi
+        attr_str = create_primer_attributes_str({PRIMER_WEIGHT_KEY: "1", "ps": "As"})
+        self.assertEqual(attr_str, "pw=1;ps=As")
+        # test valid + sort order
+        attr_str = create_primer_attributes_str(
+            {"a": 100, PRIMER_WEIGHT_KEY: "1", "ps": "As"}
+        )
+        self.assertEqual(attr_str, "a=100;pw=1;ps=As")
+
+        # Test strip whitespace
+        attr_str = create_primer_attributes_str(
+            {"a": 100, PRIMER_WEIGHT_KEY: "1", "ps": "A   s"}
+        )
+        self.assertEqual(attr_str, "a=100;pw=1;ps=As")
+
+    def test_attributes_roundtrip(self):
+        # Simple
+        primer_attr = "pw=1"
+        self.assertEqual(
+            create_primer_attributes_str(parse_primer_attributes_str(primer_attr)),
+            primer_attr,
+        )
+        # multi
+        primer_attr = "a=100;pw=1;ps=As"
+        self.assertEqual(
+            create_primer_attributes_str(parse_primer_attributes_str(primer_attr)),
+            primer_attr,
+        )
+
 
 class TestBedLine(unittest.TestCase):
     def setUp(self) -> None:
@@ -47,6 +199,15 @@ class TestBedLine(unittest.TestCase):
             start=100,
             end=200,
             primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        self.bedlinev2 = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT_1",
             pool=1,
             strand="+",
             sequence="ACGT",
@@ -92,7 +253,15 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(bedline.length, 100)
         self.assertEqual(bedline.amplicon_number, 1)
         self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(
+            bedline.amplicon_name,
+            f"{bedline.amplicon_prefix}_{bedline.amplicon_number}",
+        )
+        self.assertEqual(bedline.primername, "scheme_1_LEFT")
+        self.assertIsNone(bedline.primer_suffix)
+
         self.assertEqual(bedline.ipool, 0)
+        self.assertEqual(bedline.primer_class, PrimerClass.LEFT)
         self.assertEqual(
             bedline.to_bed(),
             "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n",
@@ -107,7 +276,7 @@ class TestBedLine(unittest.TestCase):
             pool=1,
             strand="+",
             sequence="ACGT",
-            weight="",
+            attributes="",
         )
         # Provides values
         self.assertEqual(bedline.chrom, "chr1")
@@ -123,10 +292,45 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(bedline.length, 100)
         self.assertEqual(bedline.amplicon_number, 1)
         self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(bedline.amplicon_name, "scheme_1")
         self.assertEqual(bedline.ipool, 0)
         self.assertEqual(
             bedline.to_bed(),
             "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n",
+        )
+
+    def test_bedline_create_probe(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_114_PROBE_2",
+            pool=10,
+            strand="+",
+            sequence="ACGT",
+            attributes="pw=10",
+        )
+        # Provides values
+        self.assertEqual(bedline.chrom, "chr1")
+        self.assertEqual(bedline.start, 100)
+        self.assertEqual(bedline.end, 200)
+        self.assertEqual(bedline.primername, "scheme_114_PROBE_2")
+        self.assertEqual(bedline.pool, 10)
+        self.assertEqual(bedline.strand, "+")
+        self.assertEqual(bedline.sequence, "ACGT")
+        self.assertEqual(bedline.weight, 10)
+        assert bedline.attributes is not None
+        self.assertDictEqual(bedline.attributes, {PRIMER_WEIGHT_KEY: 10})
+
+        # Derived values
+        self.assertEqual(bedline.length, 100)
+        self.assertEqual(bedline.amplicon_number, 114)
+        self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(bedline.amplicon_name, "scheme_114")
+        self.assertEqual(bedline.ipool, 9)
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_114_PROBE_2\t10\t+\tACGT\tpw=10.0\n",
         )
 
     def test_bedline_create_weight(self):
@@ -138,7 +342,7 @@ class TestBedLine(unittest.TestCase):
             pool=1,
             strand="+",
             sequence="ACGT",
-            weight=1.0,
+            attributes={PRIMER_WEIGHT_KEY: 1},
         )
         # Provides values
         self.assertEqual(bedline.chrom, "chr1")
@@ -157,10 +361,62 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(bedline.ipool, 0)
         self.assertEqual(
             bedline.to_bed(),
-            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t1.0\n",
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0\n",
         )
 
-    def test_invalid_bedline(self):
+    def test_bedline_create_attr(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+            attributes="pw=1;ps=2;dfa=1000",
+        )
+        # Provides values
+        self.assertEqual(bedline.chrom, "chr1")
+        self.assertEqual(bedline.start, 100)
+        self.assertEqual(bedline.end, 200)
+        self.assertEqual(bedline.primername, "scheme_1_LEFT")
+        self.assertEqual(bedline.pool, 1)
+        self.assertEqual(bedline.strand, "+")
+        self.assertEqual(bedline.sequence, "ACGT")
+        self.assertEqual(bedline.weight, 1.0)
+        assert bedline.attributes is not None
+
+        # Check attr
+        self.assertEqual(bedline.attributes["pw"], 1)
+        self.assertEqual(bedline.attributes["ps"], "2")
+        self.assertEqual(bedline.attributes["dfa"], "1000")
+
+        # Derived values
+        self.assertEqual(bedline.length, 100)
+        self.assertEqual(bedline.amplicon_number, 1)
+        self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(bedline.ipool, 0)
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0;ps=2;dfa=1000\n",
+        )
+
+        # Change an attr
+        bedline.attributes["test"] = 100
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0;ps=2;dfa=1000;test=100\n",
+        )
+
+        # Remove pw
+        bedline.attributes.pop("pw")
+        self.assertIsNone(bedline.weight)
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tps=2;dfa=1000;test=100\n",
+        )
+
+    def test_create_invalid_bedline(self):
         # Fake primername should raise ValueError
         with self.assertRaises(ValueError):
             BedLine(
@@ -193,7 +449,7 @@ class TestBedLine(unittest.TestCase):
                 pool=1,
                 strand="+",
                 sequence="ACGT",
-                weight=-1.0,
+                attributes={PRIMER_WEIGHT_KEY: -1.0},
             )
         # str weight should raise ValueError
         with self.assertRaises(ValueError):
@@ -205,12 +461,12 @@ class TestBedLine(unittest.TestCase):
                 pool=1,
                 strand="+",
                 sequence="ACGT",
-                weight="A",
+                attributes={PRIMER_WEIGHT_KEY: "A"},
             )
 
     def test_bedline_parse_params(self):
         bedline = BedLine(
-            chrom=1,  # int chrom
+            chrom=1,  # int chrom # type: ignore
             start="100",  # str start
             end="200",  # str end
             primername="scheme_1_LEFT",
@@ -255,6 +511,45 @@ class TestBedLine(unittest.TestCase):
         with self.assertRaises(ValueError):
             valid_bedline.primername = "invalid"
 
+    def test_bedline_change_class(self):
+        bl = self.bedlinev2
+
+        # CHeck is left
+        self.assertEqual(bl.primername, "scheme_1_LEFT_1")
+        self.assertEqual(bl.strand, Strand.FORWARD.value)
+
+        # Check LEFT -> PROBE
+        bl.primer_class = PrimerClass.PROBE.value
+        self.assertEqual(bl.primername, "scheme_1_PROBE_1")
+        self.assertEqual(bl.strand, Strand.FORWARD.value)  # Check strand unchanged
+
+        # Check PROBE -> RIGHT
+        with self.assertRaises(ValueError):
+            bl.primer_class = PrimerClass.RIGHT.value
+        # Change the strand
+        bl.strand = Strand.REVERSE.value
+
+        # PROBE -> RIGHT
+        bl.primer_class = PrimerClass.RIGHT.value
+        self.assertEqual(bl.primername, "scheme_1_RIGHT_1")
+        self.assertEqual(bl.strand, Strand.REVERSE.value)  # Check strand unchanged
+
+        # RIGHT -> LEFT
+        with self.assertRaises(ValueError):
+            bl.primer_class = PrimerClass.LEFT.value
+        # Try force change
+        bl.force_change(PrimerClass.LEFT.value, Strand.FORWARD.value)
+        self.assertEqual(bl.primername, "scheme_1_LEFT_1")
+        self.assertEqual(bl.strand, Strand.FORWARD.value)
+
+        # Force change LEFT -> RIGHT:
+        with self.assertRaises(ValueError):
+            bl.primer_class = PrimerClass.RIGHT.value
+        # Try force change
+        bl.force_change(PrimerClass.RIGHT.value, Strand.REVERSE.value)
+        self.assertEqual(bl.primername, "scheme_1_RIGHT_1")
+        self.assertEqual(bl.strand, Strand.REVERSE.value)
+
     def test_to_bed(self):
         bedline = BedLine(
             chrom="chr1",
@@ -273,7 +568,34 @@ class TestBedLine(unittest.TestCase):
         bedline.weight = 1.0
         self.assertEqual(
             bedline.to_bed(),
-            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t1.0\n",
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0\n",
+        )
+
+    def test_to_bed_probe(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_PROBE",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_PROBE\t1\t+\tACGT\n",
+        )
+        # Provide weight
+        bedline.weight = 1.0
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_PROBE\t1\t+\tACGT\tpw=1.0\n",
+        )
+
+        bedline = update_primernames([bedline])[0]
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_PROBE_1\t1\t+\tACGT\tpw=1.0\n",
         )
 
     def test_chrom_set(self):
@@ -398,11 +720,13 @@ class TestBedLine(unittest.TestCase):
 
     def test_update_primername_strand(self):
         bedline = self.bedline
+        bedline.primername = "scheme_10_RIGHT_2"
 
-        # Update the strand
-        bedline.strand = "-"
-        # Check name has changed
-        self.assertEqual(bedline.primername, "scheme_1_RIGHT")
+        # Check all updated
+        self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(bedline.amplicon_number, 10)
+        self.assertEqual(bedline.strand, "-")
+        self.assertEqual(bedline.primer_class, PrimerClass.RIGHT)
 
     def test_pool_setter(self):
         bedline = self.bedline
@@ -471,12 +795,6 @@ class TestBedLine(unittest.TestCase):
             bedline.primername = "test_A_LEFT"
         self.assertIn("Invalid primername", str(context.exception))
 
-        # Test connection with strand property
-        bedline.primername = "test_7_LEFT"
-        self.assertEqual(bedline.strand, "+")
-        bedline.strand = "-"
-        self.assertEqual(bedline.primername, "test_7_RIGHT")
-
     def test_update_primername(self):
         bedline = self.bedline
         # Update amplicon number
@@ -540,6 +858,32 @@ class TestBedLine(unittest.TestCase):
         bedline.primer_suffix = None
         self.assertIsNone(bedline.primer_suffix)
 
+    def test_attribute_setter(self):
+        bedline = self.bedline
+
+        # Set nonsense
+        with self.assertRaises(ValueError) as context:
+            bedline.attributes = []  # type: ignore
+        self.assertIn("Invalid primer attributes.", str(context.exception))
+
+        # Set empty dict
+        bedline.attributes = {}
+        self.assertEqual(bedline.attributes, {})
+        # Ensure empty dict is not written to bed
+        self.assertEqual(
+            bedline.to_bed(), "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
+        )
+
+        # Set string. Test pw is converted to float
+        bedline.attributes = "pw=1;ps=2"
+        assert bedline.attributes is not None
+        self.assertDictEqual(bedline.attributes, {"pw": 1.0, "ps": "2"})  # type: ignore
+
+        # Set an invalid pw
+        with self.assertRaises(ValueError) as context:
+            bedline.attributes = "pw=A;"
+        self.assertIn("weight must be a float", str(context.exception))
+
 
 class TestCreateBedline(unittest.TestCase):
     def test_create_bedline(self):
@@ -586,6 +930,19 @@ class TestReadBedfile(unittest.TestCase):
         # Check bedlines have weights
         for bedline in bedlines:
             self.assertIsNotNone(bedline.weight)
+
+    def test_read_attr_bedline(self):
+        headers, bedlines = read_bedfile(TEST_ATTRIBUTES_BEDFILE)
+        # Check for 3 headers
+        self.assertEqual(len(headers), 3)
+
+        # Check bedlines have weights and attrs
+        for bedline in bedlines:
+            self.assertIsNotNone(bedline.weight)
+            self.assertIsNotNone(bedline.attributes)
+            assert bedline.attributes is not None
+            # Check for two attrs
+            self.assertEqual(len(bedline.attributes), 2)
 
 
 class TestCreateBedfileStr(unittest.TestCase):
@@ -642,7 +999,7 @@ class TestWriteBedfile(unittest.TestCase):
         with open(self.output_bed_path) as f:
             content = f.read()
         self.assertEqual(
-            content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t1.0\n"
+            content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0\n"
         )
 
     def tearDown(self) -> None:
@@ -766,11 +1123,6 @@ class TestGroupByAmpliconNumber(unittest.TestCase):
         grouped = group_by_amplicon_number(bedlines)
         self.assertEqual(len(grouped), 3)
 
-        # Check for correct ampliconnumber
-        for amplicon_number, bedlines in grouped.items():
-            for bedline in bedlines:
-                self.assertEqual(bedline.amplicon_number, amplicon_number)
-
         # Check for correct primernames
         self.assertEqual(
             {bl.primername for bl in grouped[1]},
@@ -819,6 +1171,60 @@ class TestGroupByStrand(unittest.TestCase):
         self.assertEqual(len(grouped), 2)
         self.assertEqual(len(grouped["+"]), 3)
         self.assertEqual(len(grouped["-"]), 3)
+
+
+class TestGroupByDirection(unittest.TestCase):
+    def test_group_by_direction(self):
+        bedline1 = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT_1",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        bedline2 = BedLine(
+            chrom="chr1",
+            start=150,
+            end=250,
+            primername="scheme_1_RIGHT_1",
+            pool=2,
+            strand="-",
+            sequence="ACGT",
+        )
+        bedline3 = BedLine(
+            chrom="chr1",
+            start=175,
+            end=225,
+            primername="scheme_1_PROBE_1",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+        grouped = group_by_class([bedline1, bedline2, bedline3])
+        self.assertEqual(len(grouped), 3)
+        self.assertEqual(len(grouped[PrimerClass.LEFT.value]), 1)
+        self.assertEqual(len(grouped[PrimerClass.RIGHT.value]), 1)
+        self.assertEqual(len(grouped[PrimerClass.PROBE.value]), 1)
+        self.assertEqual(grouped[PrimerClass.LEFT.value], [bedline1])
+        self.assertEqual(grouped[PrimerClass.RIGHT.value], [bedline2])
+        self.assertEqual(grouped[PrimerClass.PROBE.value], [bedline3])
+
+    def test_group_by_direction_file(self):
+        headers, bedlines = read_bedfile(TEST_BEDFILE)
+        grouped = group_by_class(bedlines)
+        self.assertEqual(len(grouped), 2)
+        self.assertEqual(len(grouped[PrimerClass.LEFT.value]), 3)
+        self.assertEqual(len(grouped[PrimerClass.RIGHT.value]), 3)
+
+        # Check that all LEFT primers have correct direction
+        for bedline in grouped[PrimerClass.LEFT.value]:
+            self.assertEqual(bedline.direction_str, "LEFT")
+
+        # Check that all RIGHT primers have correct direction
+        for bedline in grouped[PrimerClass.RIGHT.value]:
+            self.assertEqual(bedline.direction_str, "RIGHT")
 
 
 class TestBedLineParser(unittest.TestCase):
@@ -984,7 +1390,7 @@ class TestModifyBedLines(unittest.TestCase):
         # Check that the bedlines are sorted
         self.assertEqual(sorted_bedlines, bedlines)
 
-    def test_merge_bedlines_single(self):
+    def test_merge_primers_single(self):
         bedlines = [
             BedLine(
                 chrom="chr1",
@@ -1005,7 +1411,7 @@ class TestModifyBedLines(unittest.TestCase):
                 sequence="ACGT",
             ),
         ]
-        merged_bedlines = merge_bedlines(bedlines)
+        merged_bedlines = merge_primers(bedlines)
         # Check merged bedline
         self.assertEqual(len(merged_bedlines), 1)
 
@@ -1018,7 +1424,7 @@ class TestModifyBedLines(unittest.TestCase):
         self.assertEqual(merged_bedline.pool, 1)
         self.assertEqual(merged_bedline.strand, "-")
 
-    def test_merge_bedlines_nothing(self):
+    def test_merge_primers_nothing(self):
         bedlines = [
             BedLine(
                 chrom="chr1",
@@ -1039,12 +1445,12 @@ class TestModifyBedLines(unittest.TestCase):
                 sequence="ACGT",
             ),
         ]
-        merged_bedlines = merge_bedlines(bedlines)
+        merged_bedlines = merge_primers(bedlines)
 
         self.assertEqual(len(merged_bedlines), 2)
 
-    def test_merge_bedlines_empty(self):
-        merged_bedlines = merge_bedlines([])
+    def test_merge_primers_empty(self):
+        merged_bedlines = merge_primers([])
         self.assertEqual(len(merged_bedlines), 0)
 
     def test_expand_bedlines(self):
