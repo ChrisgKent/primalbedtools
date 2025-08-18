@@ -121,7 +121,7 @@ class Scheme:
         return False
 
     @property
-    def header_dict(self):
+    def header_dict(self) -> dict:
         """Parse headers into a dictionary format.
 
         Returns:
