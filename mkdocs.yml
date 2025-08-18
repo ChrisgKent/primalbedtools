@@ -7,6 +7,7 @@ repo_url: https://github.com/ChrisgKent/primalbedtools
 
 plugins:
   - mkdocstrings:
+      default_handler: python
       handlers:
         python:
           options:
@@ -22,4 +23,4 @@ nav:
   - primalbedtools: index.md
   - How To Guides: how-to-guides.md
   - Command Line Interface: cli.md
-  - reference.md
+  - API: api.md

@@ -1,4 +1,5 @@
 import argparse
+from importlib.metadata import version
 
 from primalbedtools.amplicons import create_amplicons
 from primalbedtools.bedfiles import (
@@ -12,6 +13,10 @@ from primalbedtools.validate import validate, validate_primerbed
 
 def main():
     parser = argparse.ArgumentParser(description="PrimalBedTools")
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {version('primalbedtools')}"
+    )
+
     subparsers = parser.add_subparsers(dest="subparser_name", required=True)
 
     # Remap subcommand
