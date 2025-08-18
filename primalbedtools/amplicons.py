@@ -165,6 +165,10 @@ class Amplicon:
             return NotImplemented
         return not self.__eq__(other)
 
+    def __hash__(self) -> int:
+        """Hash is based off the self.to_amplicon_str()"""
+        return hash(self.to_amplicon_str())
+
     @property
     def ipool(self) -> int:
         """Get the 0-based pool number.
