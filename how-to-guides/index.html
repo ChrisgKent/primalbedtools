@@ -1,0 +1,794 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../cli/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>How To Guides - primalbedtools</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.342714a4.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#quick-start" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="primalbedtools" class="md-header__button md-logo" aria-label="primalbedtools" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            primalbedtools
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              How To Guides
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ChrisgKent/primalbedtools" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="primalbedtools" class="md-nav__button md-logo" aria-label="primalbedtools" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    primalbedtools
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ChrisgKent/primalbedtools" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    primalbedtools
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    How To Guides
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    How To Guides
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#using-the-bedline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using the BedLine
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Using the BedLine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      Properties
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#setting-properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      Setting Properties
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Internal validation
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Common Operations
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Operations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#converting-between-versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Converting between versions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Converting between versions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#updating" class="md-nav__link">
+    <span class="md-ellipsis">
+      Updating
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#downgrading" class="md-nav__link">
+    <span class="md-ellipsis">
+      Downgrading
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sorting-bedfiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sorting bedfiles
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#grouping-bedlines" class="md-nav__link">
+    <span class="md-ellipsis">
+      Grouping Bedlines
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Command Line Interface
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#using-the-bedline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using the BedLine
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Using the BedLine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      Properties
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#setting-properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      Setting Properties
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Internal validation
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Common Operations
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Operations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#converting-between-versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Converting between versions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Converting between versions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#updating" class="md-nav__link">
+    <span class="md-ellipsis">
+      Updating
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#downgrading" class="md-nav__link">
+    <span class="md-ellipsis">
+      Downgrading
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sorting-bedfiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sorting bedfiles
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#grouping-bedlines" class="md-nav__link">
+    <span class="md-ellipsis">
+      Grouping Bedlines
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="quick-start">Quick Start</h1>
+<p>The easiest way to use use (primer) bed files is to use the Scheme object. It can handle input/output and common operations! </p>
+<pre><code class="language-python">from primalbedtools.scheme import Scheme
+
+# Reading from a file
+scheme = Scheme.from_file(&quot;./primer.bed&quot;)
+
+# From a str
+scheme = Scheme.from_str('# header!!!\nMN908947.3\t47\t78\tSARS-CoV-2_1_LEFT_1\t1\t+\tCTCTTGTAGATCTGTTCTCTAAACGAACTTT\nMN908947.3\t419\t447\tSARS-CoV-2_1_RIGHT_1\t1\t-\tAAAACGCCTTTTTCAACTTCTACTAAGC\n')
+
+# Headers 
+print(scheme.header)
+['# header!!!']
+
+# Bedlines 
+print([bl.primername for bl in scheme.bedlines])
+['SARS-CoV-2_1_LEFT_1', 'SARS-CoV-2_1_RIGHT_1']
+
+</code></pre>
+<h2 id="using-the-bedline">Using the BedLine</h2>
+<p>Each line in the bed file encodes a single primer (or probe), which is represented by a single <code>BedLine</code> class that holds all the information contained in the bed file, while also providing field validation (ensuring the BedLine is valid at all times).</p>
+<h3 id="properties">Properties</h3>
+<p>All expected properties are accessible.  Including some calculated ones. Please see <a href="../api/">BedLine reference</a></p>
+<pre><code class="language-python">bl = bedlines[0]
+
+print(bl.start)
+47
+
+print(bl.primername)
+'SARS-CoV-2_1_LEFT_1'
+</code></pre>
+<h3 id="setting-properties">Setting Properties</h3>
+<p>Some properties are reliant on others. For example <code>primername</code> depends on <code>amplicon_prefix, amplicon_number, strand, primer_suffix</code>. Hence updating one will update all connected values. </p>
+<pre><code class="language-python"># see old name
+print(bl.primername)
+'SARS-CoV-2_1_LEFT_1'
+
+# update amplicon_prefix
+bl.amplicon_prefix = &quot;new-amp-name&quot;
+
+# see updated primername
+print(bl.primername)
+'new-amp-name_1_LEFT_1'
+
+# change the strand
+bl.strand = &quot;-&quot;
+print(bl.primername)
+'new-amp-name_1_RIGHT_1'
+
+# this also works in reverse 
+bl.primername = &quot;final_10_LEFT_alt1&quot;
+print(bl.amplicon_prefix, bl.amplicon_number, bl.strand, bl.primer_suffix, sep= &quot; | &quot; )
+&quot;final | 10 | + | alt1&quot;
+</code></pre>
+<h3 id="internal-validation">Internal validation</h3>
+<p>Attempting to set an invalid property will raise an error.</p>
+<pre><code class="language-python">bl.primername = &quot;test&quot;
+ValueError: Invalid primername: (test). Must be in v1 or v2 format
+
+bl.pool = 0
+ValueError: pool is 1-based pos int pool number. Got (0)
+
+bl.start = &quot;A&quot;
+ValueError: start must be an int. Got (A)
+
+bl.amplicon_prefix = &quot;test_invalid&quot;
+ValueError: Invalid amplicon_prefix: (test_invalid). Must be alphanumeric or hyphen.
+</code></pre>
+<h2 id="common-operations">Common Operations</h2>
+<h3 id="converting-between-versions">Converting between versions</h3>
+<p>During development of primer.bed files multiple versions have been used. </p>
+<p>The current version (v2) uses a primername in the form of <code>{amplicon_prefix}_{amplicon_number}_{strand}_{primer_number}</code> (eg <code>SARS-CoV-2_1_RIGHT_1</code>). </p>
+<p>The old form typically used <code>{amplicon_prefix}_{amplicon_number}</code> or <code>{amplicon_prefix}_{amplicon_number}_alt1</code> (eg <code>SARS-CoV-2_1_RIGHT</code> | <code>SARS-CoV-2_1_RIGHT_alt</code>) to represent multiple primers for a site. </p>
+<p>Therefore being able to convert between the two is useful as certain tool product / expect different versions. </p>
+<h4 id="updating">Updating</h4>
+<p>v1 bedfile example</p>
+<pre><code>MN908947.3  47  78  SARS-CoV-2_1_LEFT   1   +   CTCTTGTAGATCTGTTCTCTAAACGAACTTT
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT  1   -   AAAACGCCTTTTTCAACTTCTACTAAGC
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT_alt  1   -   AAAACGCCTTTTTCAACTTCTACTAAAA
+MN908947.3  344 366 SARS-CoV-2_2_LEFT   2   +   TCGTACGTGGCTTTGGAGACTC
+MN908947.3  707 732 SARS-CoV-2_2_RIGHT  2   -   TCTTCATAAGGATCAGTGCCAAGCT
+...
+</code></pre>
+<pre><code class="language-python">from primalbedtools.bedfiles import BedFileModifier
+updated_bl = BedFileModifier.update_primernames(bedlines)
+</code></pre>
+<p>updated to v2 </p>
+<pre><code>MN908947.3  47  78  SARS-CoV-2_1_LEFT_1 1   +   CTCTTGTAGATCTGTTCTCTAAACGAACTTT
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT_2    1   -   AAAACGCCTTTTTCAACTTCTACTAAGC
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT_1    1   -   AAAACGCCTTTTTCAACTTCTACTAAAA
+MN908947.3  344 366 SARS-CoV-2_2_LEFT_1 2   +   TCGTACGTGGCTTTGGAGACTC
+MN908947.3  707 732 SARS-CoV-2_2_RIGHT_1    2   -   TCTTCATAAGGATCAGTGCCAAGCT
+...
+</code></pre>
+<h4 id="downgrading">Downgrading</h4>
+<div class="admonition warning">
+<p class="admonition-title">The original order of the primers is lost. Therefore, combining upgrading and downgrading might produce different primernames (if unordered input).</p>
+</div>
+<p>This will take the upgraded v2 output and convert it back into v1 </p>
+<pre><code class="language-python">from primalbedtools.bedfiles import BedFileModifier
+downgraded_bl = BedFileModifier.downgrade_primernames(updated_bl)
+</code></pre>
+<p>downgraded to v1 (with alts)</p>
+<pre><code>MN908947.3  47  78  SARS-CoV-2_1_LEFT   1   +   CTCTTGTAGATCTGTTCTCTAAACGAACTTT
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT_alt1 1   -   AAAACGCCTTTTTCAACTTCTACTAAGC
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT  1   -   AAAACGCCTTTTTCAACTTCTACTAAAA
+MN908947.3  344 366 SARS-CoV-2_2_LEFT   2   +   TCGTACGTGGCTTTGGAGACTC
+MN908947.3  707 732 SARS-CoV-2_2_RIGHT  2   -   TCTTCATAAGGATCAGTGCCAAGCT
+...
+</code></pre>
+<div class="admonition note">
+<p class="admonition-title">In this example the <code>alt</code> suffix changed to <code>alt1</code> moved from the primer with the sequence <code>AAAACGCCTTTTTCAACTTCTACTAAAA</code> to the primer with sequence <code>AAAACGCCTTTTTCAACTTCTACTAAGC</code></p>
+</div>
+<p>The presence of <code>_alt</code> can still provide breaking changes for some tools, and can be removed with <code>merge_alts</code>.</p>
+<pre><code class="language-python">from primalbedtools.bedfiles import BedFileModifier
+downgraded_bl = BedFileModifier.downgrade_primernames(updated_bl, merge_alts=True)
+</code></pre>
+<p>downgraded to v1 (no alts)</p>
+<pre><code>MN908947.3  47  78  SARS-CoV-2_1_LEFT   1   +   CTCTTGTAGATCTGTTCTCTAAACGAACTTT
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT  1   -   AAAACGCCTTTTTCAACTTCTACTAAAA
+MN908947.3  344 366 SARS-CoV-2_2_LEFT   2   +   TCGTACGTGGCTTTGGAGACTC
+MN908947.3  707 732 SARS-CoV-2_2_RIGHT  2   -   TCTTCATAAGGATCAGTGCCAAGCT
+...
+</code></pre>
+<h3 id="sorting-bedfiles">Sorting bedfiles</h3>
+<div class="admonition note">
+<p class="admonition-title">Sorting a primer.bed file is having bedlines in amplicon order rather than index order.</p>
+</div>
+<pre><code>MN908947.3  344 366 SARS-CoV-2_2_LEFT_1 2   +   TCGTACGTGGCTTTGGAGACTC
+MN908947.3  47  78  SARS-CoV-2_1_LEFT_1 1   +   CTCTTGTAGATCTGTTCTCTAAACGAACTTT
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT_2    1   -   AAAACGCCTTTTTCAACTTCTACTAAGC
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT_1    1   -   AAAACGCCTTTTTCAACTTCTACTAAAA
+MN908947.3  707 732 SARS-CoV-2_2_RIGHT_1    2   -   TCTTCATAAGGATCAGTGCCAAGCT
+</code></pre>
+<p>This will order by <code>chrom</code>, <code>amplicon_number</code>, <code>strand</code>, and <code>primer_suffix</code>.</p>
+<pre><code class="language-python">from primalbedtools.bedfiles import BedFileModifier
+sorted_bl = BedFileModifier.sort_bedlines(bedlines)
+</code></pre>
+<p>sorted bedlines</p>
+<pre><code>MN908947.3  47  78  SARS-CoV-2_1_LEFT_1 1   +   CTCTTGTAGATCTGTTCTCTAAACGAACTTT
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT_2    1   -   AAAACGCCTTTTTCAACTTCTACTAAGC
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT_1    1   -   AAAACGCCTTTTTCAACTTCTACTAAAA
+MN908947.3  344 366 SARS-CoV-2_2_LEFT_1 2   +   TCGTACGTGGCTTTGGAGACTC
+MN908947.3  707 732 SARS-CoV-2_2_RIGHT_1    2   -   TCTTCATAAGGATCAGTGCCAAGCT
+</code></pre>
+<h3 id="grouping-bedlines">Grouping Bedlines</h3>
+<p>A common operation is to group bedlines by a property. This can be done with <code>group_by_chrom</code>, <code>group_by_amplicon_number</code>, <code>group_by_strand</code>, <code>group_primer_pairs</code>. </p>
+<pre><code class="language-python">from primalbedtools.bedfiles import group_by_chrom, group_by_amplicon_number, group_by_strand, group_primer_pairs, group_by_pool
+
+group_by_chrom(bedlines)
+{'MN908947.3': [...]}
+
+group_by_amplicon_number(bedlines)
+{1: [...],
+ 2: [...]}
+
+group_by_strand(bedlines)
+{'+': [...],
+ '-': [...]}
+
+group_by_class(bedlines)
+{&quot;LEFT&quot;: [...],
+ &quot;RIGHT&quot;: [...]}
+
+ group_by_pool(bedlines)
+{1: [...],
+ 2: [...]}
+
+# For each amplicon. It will return ([f bedlines], [r bedlines])
+group_primer_pairs(bedlines)
+[([&lt;primalbedtools.bedfiles.BedLine object at 0x105431650&gt;], [&lt;primalbedtools.bedfiles.BedLine object at 0x105431fd0&gt;, &lt;primalbedtools.bedfiles.BedLine object at 0x105432850&gt;]), ([&lt;primalbedtools.bedfiles.BedLine object at 0x105432150&gt;], [&lt;primalbedtools.bedfiles.BedLine object at 0x105432650&gt;])]
+</code></pre>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+    
+  </body>
+</html>
