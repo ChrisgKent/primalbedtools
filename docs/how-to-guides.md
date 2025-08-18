@@ -1,44 +1,34 @@
-## Reading in bed files
+# Quick Start
 
-The first step in using bedfiles in reading them into the BedLine class. This can be done from either a file or from a string.
+The easiest way to use use (primer) bed files is to use the Scheme object. It can handle input/output and common operations! 
 
 ```python
-from primalbedtools.bedfiles import BedLineParser, BedLine
+from primalbedtools.scheme import Scheme
 
-# From a file
-header, bedlines = BedLineParser.from_file('./primer.bed')
+# Reading from a file
+scheme = Scheme.from_file("./primer.bed")
 
 # From a str
-header, bedlines = BedLineParser.from_str('# header!!!\nMN908947.3\t47\t78\tSARS-CoV-2_1_LEFT_1\t1\t+\tCTCTTGTAGATCTGTTCTCTAAACGAACTTT\nMN908947.3\t419\t447\tSARS-CoV-2_1_RIGHT_1\t1\t-\tAAAACGCCTTTTTCAACTTCTACTAAGC\n')
+scheme = Scheme.from_str('# header!!!\nMN908947.3\t47\t78\tSARS-CoV-2_1_LEFT_1\t1\t+\tCTCTTGTAGATCTGTTCTCTAAACGAACTTT\nMN908947.3\t419\t447\tSARS-CoV-2_1_RIGHT_1\t1\t-\tAAAACGCCTTTTTCAACTTCTACTAAGC\n')
 
 # Headers 
-print(header)
+print(scheme.header)
 ['# header!!!']
 
 # Bedlines 
-print([bl.primername for bl in bedlines])
+print([bl.primername for bl in scheme.bedlines])
 ['SARS-CoV-2_1_LEFT_1', 'SARS-CoV-2_1_RIGHT_1']
 
 ```
 
-## Writing bedfiles
-
-BedLines can be converted into a string or written to a file
-```python
-# Create the str
-bed_str = BedLineParser.to_str(headers = ['example header'], bedlines = bedlines)
-
-# Write to a file
-BedLineParser.to_file("./primer.bed", headers = [], bedlines = bedlines)
-```
 
 ## Using the BedLine
 
-The BedLine class holds all the information contained in the bed file, while also providing field validation (ensuring the BedLine is valid at all times).
+Each line in the bed file encodes a single primer (or probe), which is represented by a single `BedLine` class that holds all the information contained in the bed file, while also providing field validation (ensuring the BedLine is valid at all times).
 
 ### Properties 
 
-All expected properties are accessible.  Including some calculated ones. Please see [BedLine reference](reference.md)
+All expected properties are accessible.  Including some calculated ones. Please see [BedLine reference](api.md)
 
 ```python
 bl = bedlines[0]
@@ -216,6 +206,10 @@ group_by_amplicon_number(bedlines)
 group_by_strand(bedlines)
 {'+': [...],
  '-': [...]}
+
+group_by_class(bedlines)
+{"LEFT": [...],
+ "RIGHT": [...]}
 
  group_by_pool(bedlines)
 {1: [...],
