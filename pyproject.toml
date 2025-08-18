@@ -1,6 +1,6 @@
 [project]
 name = "primalbedtools"
-version = "0.10.1"
+version = "0.10.2"
 description = "A collection of tools for working with primer.bed files"
 authors = [{ name = "ChrisKent", email = "chrisgkent@gmail.com" }]
 requires-python = ">=3.9, <4"
@@ -18,11 +18,13 @@ dev = [
     "pre-commit>=3.7.1,<4",
     "coverage>=7.8.0,<8",
     "pytest>=8.3.5,<9",
+    "ruff>=0.12",
+]
+docs = [
+    "mkdocstrings-python>=1.16.10",
     "mkdocs>=1.6.1,<2",
     "mkdocstrings[python]>=0.29.1,<0.30",
     "mkdocs-material>=9.6.14,<10",
-    "ruff>=0.12",
-    "mkdocstrings-python>=1.16.10",
 ]
 
 [build-system]

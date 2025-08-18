@@ -596,19 +596,21 @@ wheels = [
 
 [[package]]
 name = "primalbedtools"
-version = "0.10.1"
+version = "0.10.2"
 source = { editable = "." }
 
 [package.dev-dependencies]
 dev = [
     { name = "coverage" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+docs = [
     { name = "mkdocs" },
     { name = "mkdocs-material" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "mkdocstrings-python" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -616,13 +618,15 @@ dev = [
 [package.metadata.requires-dev]
 dev = [
     { name = "coverage", specifier = ">=7.8.0,<8" },
+    { name = "pre-commit", specifier = ">=3.7.1,<4" },
+    { name = "pytest", specifier = ">=8.3.5,<9" },
+    { name = "ruff", specifier = ">=0.12" },
+]
+docs = [
     { name = "mkdocs", specifier = ">=1.6.1,<2" },
     { name = "mkdocs-material", specifier = ">=9.6.14,<10" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.29.1,<0.30" },
     { name = "mkdocstrings-python", specifier = ">=1.16.10" },
-    { name = "pre-commit", specifier = ">=3.7.1,<4" },
-    { name = "pytest", specifier = ">=8.3.5,<9" },
-    { name = "ruff", specifier = ">=0.12" },
 ]
 
 [[package]]
