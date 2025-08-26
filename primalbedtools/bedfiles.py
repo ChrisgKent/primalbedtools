@@ -364,7 +364,7 @@ class BedLine:
     _sequence: str
 
     # primerAttributes
-    _attributes: Optional[dict[str, Union[str, float]]]
+    _attributes: dict[str, Union[str, float]]
 
     # primernames components
     _amplicon_prefix: str
@@ -586,6 +586,18 @@ class BedLine:
         """Return the strand of the primer"""
         return self._strand
 
+    @property
+    def strand_class(self) -> Strand:
+        """Return the strand class of the primer"""
+        if self.strand == "+":
+            return Strand.FORWARD
+        elif self.strand == "-":
+            return Strand.REVERSE
+        else:
+            raise ValueError(
+                f"Unknown strand value ({self.strand}) in {self.primername}"
+            )
+
     @strand.setter
     def strand(self, v):
         new_s = validate_strand(v)
@@ -624,13 +636,13 @@ class BedLine:
         elif isinstance(v, dict):
             new_dict = v
         elif v is None:
-            self._attributes = None
+            self._attributes = {}
             return
         else:
             raise ValueError(f"Invalid primer attributes. Got ({v})")
 
         if new_dict is None:
-            self._attributes = None
+            self._attributes = {}
             return
 
         # Parse the new dict

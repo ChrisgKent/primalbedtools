@@ -12,7 +12,7 @@ scheme = Scheme.from_file("./primer.bed")
 scheme = Scheme.from_str('# header!!!\nMN908947.3\t47\t78\tSARS-CoV-2_1_LEFT_1\t1\t+\tCTCTTGTAGATCTGTTCTCTAAACGAACTTT\nMN908947.3\t419\t447\tSARS-CoV-2_1_RIGHT_1\t1\t-\tAAAACGCCTTTTTCAACTTCTACTAAGC\n')
 
 # Headers 
-print(scheme.header)
+print(scheme.headers)
 ['# header!!!']
 
 # Bedlines 
@@ -58,10 +58,14 @@ print(bl.primername)
 
 # change the strand
 bl.strand = "-"
+# See Error
+ValueError: The new stand (-) is incompatible with current primer_class (LEFT). Please use method 'force_change' to update both.
+# Use correct
+bl.force_change("RIGHT", "-")
 print(bl.primername)
 'new-amp-name_1_RIGHT_1'
 
-# this also works in reverse 
+# this also works in reverse (without force_change)
 bl.primername = "final_10_LEFT_alt1"
 print(bl.amplicon_prefix, bl.amplicon_number, bl.strand, bl.primer_suffix, sep= " | " )
 "final | 10 | + | alt1"
@@ -219,3 +223,35 @@ group_by_class(bedlines)
 group_primer_pairs(bedlines)
 [([<primalbedtools.bedfiles.BedLine object at 0x105431650>], [<primalbedtools.bedfiles.BedLine object at 0x105431fd0>, <primalbedtools.bedfiles.BedLine object at 0x105432850>]), ([<primalbedtools.bedfiles.BedLine object at 0x105432150>], [<primalbedtools.bedfiles.BedLine object at 0x105432650>])]
 ```
+
+### Export as CSV
+
+While not a typical use case there will be times when primer.bed files need to be parsed by system out of our control, for example LIMs or Liquid handers. Therefore, all data contained in the bedfile can be exported to a CSV.
+
+A header row is written by default, containing all bedline information + parsed and separated Attributes.
+
+```
+# gc=fractiongc
+MN908947.3      100     131     example_1_LEFT_1        1       +       CTCTTGTAGATCTGTTCTCTAAACGAACTTT pw=1.4;gc=0.35
+MN908947.3      419     447     example_1_RIGHT_1       1       -       AAAACGCCTTTTTCAACTTCTACTAAGC    pw=1.4;gc=0.36
+MN908947.3      344     366     example_2_LEFT_1        2       +       TCGTACGTGGCTTTGGAGACTC  pw=1.0;gc=0.55
+MN908947.3      707     732     example_2_RIGHT_1       2       -       TCTTCATAAGGATCAGTGCCAAGCT       gc=0.44
+```
+
+```python
+print(scheme.to_delim_str(use_header_aliases=True))
+```
+| chrom | start | end | primername | pool | strand | sequence | amplicon_prefix | amplicon_number | primer_class_str | primer_suffix | pw | fractiongc |
+|-------|-------|-----|------------|------|--------|----------|-----------------|-----------------|------------------|---------------|----|----|
+| MN908947.3 | 100 | 131 | example_1_LEFT_1 | 1 | + | CTCTTGTAGATCTGTTCTCTAAACGAACTTT | example | 1 | LEFT | 1 | 1.4 | 0.35 |
+| MN908947.3 | 419 | 447 | example_1_RIGHT_1 | 1 | - | AAAACGCCTTTTTCAACTTCTACTAAGC | example | 1 | RIGHT | 1 | 1.4 | 0.36 |
+| MN908947.3 | 344 | 366 | example_2_LEFT_1 | 2 | + | TCGTACGTGGCTTTGGAGACTC | example | 2 | LEFT | 1 | 1.0 | 0.55 |
+| MN908947.3 | 707 | 732 | example_2_RIGHT_1 | 2 | - | TCTTCATAAGGATCAGTGCCAAGCT | example | 2 | RIGHT | 1 |  | 0.44 |
+
+Key points:
+
+- The table has consistent shape (an empty `pw` was added for `example_2_RIGHT_1`)
+
+- Header line has been written with all the primer attributes parsed into columns 
+
+- Using `use_header_aliases=True` means that `gc` has been parsed into `fractiongc` due to the `# gc=fractiongc` comment line

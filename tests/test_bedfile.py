@@ -229,7 +229,7 @@ class TestBedLine(unittest.TestCase):
                 sequence="ACGT",
             )
 
-    def test_bedline_create(self):
+    def test_bedline_create_left(self):
         bedline = BedLine(
             chrom="chr1",
             start=100,
@@ -259,12 +259,51 @@ class TestBedLine(unittest.TestCase):
         )
         self.assertEqual(bedline.primername, "scheme_1_LEFT")
         self.assertIsNone(bedline.primer_suffix)
+        self.assertEqual(Strand.FORWARD, bedline.strand_class)
 
         self.assertEqual(bedline.ipool, 0)
         self.assertEqual(bedline.primer_class, PrimerClass.LEFT)
         self.assertEqual(
             bedline.to_bed(),
             "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n",
+        )
+
+    def test_bedline_create_right(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_RIGHT",
+            pool=1,
+            strand="-",
+            sequence="ACGT",
+        )
+        # Provides values
+        self.assertEqual(bedline.chrom, "chr1")
+        self.assertEqual(bedline.start, 100)
+        self.assertEqual(bedline.end, 200)
+        self.assertEqual(bedline.primername, "scheme_1_RIGHT")
+        self.assertEqual(bedline.pool, 1)
+        self.assertEqual(bedline.strand, "-")
+        self.assertEqual(bedline.sequence, "ACGT")
+        self.assertIsNone(bedline.weight)
+
+        # Derived values
+        self.assertEqual(bedline.length, 100)
+        self.assertEqual(bedline.amplicon_number, 1)
+        self.assertEqual(bedline.amplicon_prefix, "scheme")
+        self.assertEqual(
+            bedline.amplicon_name,
+            f"{bedline.amplicon_prefix}_{bedline.amplicon_number}",
+        )
+        self.assertIsNone(bedline.primer_suffix)
+        self.assertEqual(Strand.REVERSE, bedline.strand_class)
+
+        self.assertEqual(bedline.ipool, 0)
+        self.assertEqual(bedline.primer_class, PrimerClass.RIGHT)
+        self.assertEqual(
+            bedline.to_bed(),
+            "chr1\t100\t200\tscheme_1_RIGHT\t1\t-\tACGT\n",
         )
 
     def test_bedline_create_empty_weight(self):
@@ -883,6 +922,13 @@ class TestBedLine(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             bedline.attributes = "pw=A;"
         self.assertIn("weight must be a float", str(context.exception))
+
+        # Check attribute will be empty dict
+        bedline.attributes = None
+        self.assertEqual(bedline.attributes, {})
+
+        # Check the (if bedline.attributes:) pattern works
+        self.assertFalse(bedline.attributes)
 
 
 class TestCreateBedline(unittest.TestCase):

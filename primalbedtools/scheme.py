@@ -13,6 +13,20 @@ from primalbedtools.bedfiles import (
     write_bedfile,
 )
 
+DEFAULT_CSV_HEADERS = [
+    "chrom",
+    "start",
+    "end",
+    "primername",
+    "pool",
+    "strand",
+    "sequence",
+    "amplicon_prefix",
+    "amplicon_number",
+    "primer_class_str",
+    "primer_suffix",
+]
+
 
 class Scheme:
     """A class representing a primer scheme with headers and primer bed lines.
@@ -129,3 +143,57 @@ class Scheme:
                   to common header formats used in bed files.
         """
         return parse_headers_to_dict(self.headers)
+
+    def to_delim_str(
+        self, include_headers: bool = True, use_header_aliases: bool = False
+    ):
+        return to_delim_str(
+            self, include_headers=include_headers, use_header_aliases=use_header_aliases
+        )
+
+
+def to_delim_str(
+    scheme: Scheme, include_headers: bool = True, use_header_aliases: bool = False
+) -> str:
+    """
+    Turns a bedfile into a full expanded delim separated file
+    """
+    # Define the default headers
+    headers = DEFAULT_CSV_HEADERS
+
+    lines_to_write: list[str] = []
+
+    header_aliases = scheme.header_dict
+    aliases_to_attr = {v: k for k, v in header_aliases.items()}
+
+    # Parse the attr strings add new headers
+    for bl in scheme.bedlines:
+        for k in bl.attributes.keys():
+            if use_header_aliases:
+                k = header_aliases.get(k, k)
+            if k not in headers:
+                headers.append(k)
+
+    # Create a csv line for each bedline
+    if include_headers:
+        lines_to_write.append(",".join(headers))
+
+    for bl in scheme.bedlines:
+        bl_csv: list[str] = []
+        for h in headers:
+            r = None
+            try:
+                r = bl.__getattribute__(h)
+            except AttributeError:
+                # Search _attribute dict
+                if h in bl.attributes:
+                    r = bl.attributes[h]
+                elif h in aliases_to_attr:
+                    r = bl.attributes.get(aliases_to_attr[h])
+
+            bl_csv.append(str(r) if r is not None else "")
+
+        lines_to_write.append(",".join(bl_csv))
+
+    # write all complete lines
+    return "\n".join(lines_to_write)
