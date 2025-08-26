@@ -1,6 +1,6 @@
 [project]
 name = "primalbedtools"
-version = "0.10.2"
+version = "0.11.0"
 description = "A collection of tools for working with primer.bed files"
 authors = [{ name = "ChrisKent", email = "chrisgkent@gmail.com" }]
 requires-python = ">=3.9, <4"
@@ -30,18 +30,3 @@ docs = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.ruff.lint]
-select = [
-    # pycodestyle
-    "E",
-    # Pyflakes
-    "F",
-    # pyupgrade
-    "UP",
-    # flake8-bugbear
-    "B",
-    # isort
-    "I",
-]
-ignore = ["E501"]
