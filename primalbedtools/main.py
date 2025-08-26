@@ -4,10 +4,10 @@ from importlib.metadata import version
 from primalbedtools.amplicons import create_amplicons
 from primalbedtools.bedfiles import (
     BedFileModifier,
-    BedLineParser,
 )
 from primalbedtools.fasta import read_fasta
 from primalbedtools.remap import remap
+from primalbedtools.scheme import Scheme
 from primalbedtools.validate import validate, validate_primerbed
 
 
@@ -85,20 +85,38 @@ def main():
     format_parser = subparsers.add_parser("format", help="Format a bed file")
     format_parser.add_argument("bed", type=str, help="Input BED file")
 
+    # format
+    csv_parser = subparsers.add_parser("csv", help="Convert bed file to CSV")
+    csv_parser.add_argument("bed", type=str, help="Input BED file")
+    csv_parser.add_argument(
+        "--no-headers", help="Remove the header row from the CSV", action="store_true"
+    )
+    csv_parser.add_argument(
+        "--use-header-aliases",
+        help="Should header aliases be used.",
+        action="store_true",
+    )
+
     args = parser.parse_args()
 
-    # Read in the bed file
-    _headers, bedlines = BedLineParser.from_file(args.bed)
+    # Read in the scheme
+    scheme = Scheme.from_file(args.bed)
 
     if args.subparser_name == "remap":
         msa = read_fasta(args.msa)
-        bedlines = remap(args.from_id, args.to_id, bedlines, msa)
+        scheme.bedlines = remap(args.from_id, args.to_id, scheme.bedlines, msa)
+        print(scheme.to_str(), end="")
+        exit(0)
     elif args.subparser_name == "sort":
-        bedlines = BedFileModifier.sort_bedlines(bedlines)
+        scheme.bedlines = BedFileModifier.sort_bedlines(scheme.bedlines)
+        print(scheme.to_str(), end="")
+        exit(0)
     elif args.subparser_name == "update":
-        bedlines = BedFileModifier.update_primernames(bedlines)
+        scheme.bedlines = BedFileModifier.update_primernames(scheme.bedlines)
+        print(scheme.to_str(), end="")
+        exit(0)
     elif args.subparser_name == "amplicon":
-        amplicons = create_amplicons(bedlines)
+        amplicons = create_amplicons(scheme.bedlines)
 
         # Print the amplicons
         for amplicon in amplicons:
@@ -108,14 +126,14 @@ def main():
                 print(amplicon.to_amplicon_str())
         exit(0)  # Exit early
     elif args.subparser_name == "merge":
-        bedlines = BedFileModifier.merge_primers(bedlines)
+        scheme.bedlines = BedFileModifier.merge_primers(scheme.bedlines)
     elif args.subparser_name == "fasta":
-        for line in bedlines:
+        for line in scheme.bedlines:
             print(line.to_fasta(), end="")
 
         exit(0)  # Exit early
     elif args.subparser_name == "validate_bedfile":
-        validate_primerbed(bedlines)
+        validate_primerbed(scheme.bedlines)
         exit(0)  # early exit
 
     elif args.subparser_name == "validate":
@@ -124,18 +142,26 @@ def main():
 
     elif args.subparser_name == "downgrade":
         # merge primers if asked
-        bedlines = BedFileModifier.downgrade_primernames(
-            bedlines=bedlines, merge_alts=args.merge_alts
+        scheme.bedlines = BedFileModifier.downgrade_primernames(
+            bedlines=scheme.bedlines, merge_alts=args.merge_alts
         )
-        _headers = []  # remove headers
+        scheme.headers = []  # remove headers
+        print(scheme.to_str(), end="")
+        exit(0)
 
     elif args.subparser_name == "format":
-        pass
+        print(scheme.to_str(), end="")
+        exit(0)
+    elif args.subparser_name == "csv":
+        print(
+            scheme.to_delim_str(
+                include_headers=not args.no_headers,
+                use_header_aliases=args.use_header_aliases,
+            )
+        )
+        exit(0)
     else:
         parser.print_help()
-
-    bedfile_str = BedLineParser.to_str(_headers, bedlines)
-    print(bedfile_str, end="")
 
 
 if __name__ == "__main__":
