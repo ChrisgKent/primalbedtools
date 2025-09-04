@@ -62,7 +62,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#primalbedtools" class="md-skip">
+        <a href="#quick-start" class="md-skip">
           Skip to content
         </a>
       
@@ -98,7 +98,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              primalbedtools
+              Quick Start
             
           </span>
         </div>
@@ -192,7 +192,7 @@
   
   
   <span class="md-ellipsis">
-    primalbedtools
+    Quick Start
     
   </span>
   
@@ -205,7 +205,7 @@
   
   
   <span class="md-ellipsis">
-    primalbedtools
+    Quick Start
     
   </span>
   
@@ -228,9 +228,36 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#history" class="md-nav__link">
+    <span class="md-ellipsis">
+      History
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#installation" class="md-nav__link">
     <span class="md-ellipsis">
       Installation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-bedfile" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example bedfile
     </span>
   </a>
   
@@ -337,9 +364,36 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#history" class="md-nav__link">
+    <span class="md-ellipsis">
+      History
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#installation" class="md-nav__link">
     <span class="md-ellipsis">
       Installation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-bedfile" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example bedfile
     </span>
   </a>
   
@@ -364,8 +418,37 @@
   
 
 
-<h1 id="primalbedtools">Primalbedtools!</h1>
-<p>This is a low dependency python library for the validation of primerschemes! Mainly the primer.bed and the reference.fasta files. </p>
+<h1 id="quick-start">Quick start</h1>
+<h2 id="summary">Summary</h2>
+<p>Primalbedtools is no dependency python library for the validation of primerschemes files (primer.bed + reference.fasta). It has been designed to carry out validation, common operation and file reading / writing. </p>
+<h2 id="history">History</h2>
+<p>Over the years, the file that describes the primers for amplicon sequencing has undergone a lot of changes. However, they typically are text files, which each line representing a single primer in the PCR reaction.  </p>
+<p>The initial version (informally <strong>v1</strong>) was utilised in 2016 to 2018, had 6 columns to describe the location of the primer but did not include the primer sequence. </p>
+<div class="admonition warning">
+<p class="admonition-title"><strong>v1</strong> is now fully depreciated. We view primers sequences essential for reproducibility and therefore they are required</p>
+</div>
+<p>The next iteration (informally <strong>v2</strong>) added a 7th column which contained the primer sequence. It also provided some structure for <strong>primerName</strong> (unique identifier for each primer in 4th column) <code>{schemeName|uuid}_{ampliconNumber}_{LEFT|RIGHT}</code> and an optional <code>{_alt}</code> to denote spike in primers. </p>
+<div class="admonition info">
+<p class="admonition-title"><strong>v2</strong> has been superseded and should be updated to <strong>v3</strong>. For legacy uses <code>primalbedtools</code> can happily parse <strong>v2</strong> and even convert to <strong>v3</strong></p>
+</div>
+<p>The current generation (<strong>v3.0.0</strong>) has been formalised (see <a href="https://github.com/artic-network/primerscheme-specs/blob/20816ff7cd53bdfaab7a605dee06de1c80be759f/pdf/primerscheme.pdf">here</a> for detailed specification) but to briefly summarise; </p>
+<ul>
+<li>
+<p>Probe based qPCR assays can be described with the <code>PROBE</code> class</p>
+</li>
+<li>
+<p>Comment lines starting with <code>#</code> are supported </p>
+</li>
+<li>
+<p>An optional 8th col can include primer key-value metadata. For example a primer's gc content and score (ps) could be encoded as <code>gc=0.60;ps=100</code></p>
+</li>
+<li>
+<p>primerNames must be in the form <code>{schemeName|uuid}_{ampliconNumber}_{LEFT|RIGHT|PROBE}_{primerNumber}</code></p>
+</li>
+</ul>
+<div class="admonition info">
+<p class="admonition-title"><strong>v3</strong> is the current file format. Most of ARTICnetwork's tools expect <strong>v3</strong> primer.bed files, but most use primalbedtools and hence should be able to use <strong>v2</strong></p>
+</div>
 <h2 id="installation">Installation</h2>
 <p>Install primalbedtools using pip:</p>
 <pre><code class="language-bash">pip install primalbedtools
@@ -378,6 +461,35 @@
 cd primalbedtools 
 uv sync 
 uv run primalbedtools 
+</code></pre>
+<h2 id="example-bedfile">Example bedfile</h2>
+<p>Here is a example bedfile, slightly modified for easy viewing. </p>
+<pre><code># chrom     start   end     primername              pool    strand  sequence            primerAttributes       
+MN908947.3  47      78      SARS-CoV-2_1_LEFT_1     1       +       CTCTTGTAGATCTT...   pw=1.0;ps=100
+MN908947.3  419     447     SARS-CoV-2_1_RIGHT_1    1       -       AAAACGCCTTTCAA...   pw=0.8;ps=90
+MN908947.3  344     366     SARS-CoV-2_2_LEFT_0     2       +       TCGTACGTCTTTGG...   pw=1.0;ps=105
+MN908947.3  707     732     SARS-CoV-2_2_RIGHT_0    2       -       TCTTCAAGGATCAG...   pw=1.2;ps=104
+</code></pre>
+<p>In primalbedtools each primer is represented by a BedLine object (see BedLine section for detailed docs).</p>
+<p>The BedLine provides access to all expected fields.</p>
+<pre><code class="language-python">&gt;&gt;&gt; bl.primername 
+'SARS-CoV-2_1_LEFT_1'
+&gt;&gt;&gt; bl.sequence
+'CTCTTGTAGATCTGTTCTCTAAACGAACTTT'
+&gt;&gt;&gt; bl.attributes
+{'pw': 1.0, 'ps': '100'}
+</code></pre>
+<p>Alongside some calculated ones.</p>
+<pre><code class="language-python">&gt;&gt;&gt; bl.length
+31
+&gt;&gt;&gt; bl.primer_class_str
+'LEFT'
+&gt;&gt;&gt; bl.amplicon_number
+1
+&gt;&gt;&gt; bl.primer_suffix
+1
+&gt;&gt;&gt; bl.ipool
+0
 </code></pre>
 
 

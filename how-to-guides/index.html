@@ -185,7 +185,7 @@
   
   
   <span class="md-ellipsis">
-    primalbedtools
+    Quick Start
     
   </span>
   
@@ -349,6 +349,15 @@
   <a href="#grouping-bedlines" class="md-nav__link">
     <span class="md-ellipsis">
       Grouping Bedlines
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#export-as-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      Export as CSV
     </span>
   </a>
   
@@ -540,6 +549,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#export-as-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      Export as CSV
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -575,7 +593,7 @@ scheme = Scheme.from_file(&quot;./primer.bed&quot;)
 scheme = Scheme.from_str('# header!!!\nMN908947.3\t47\t78\tSARS-CoV-2_1_LEFT_1\t1\t+\tCTCTTGTAGATCTGTTCTCTAAACGAACTTT\nMN908947.3\t419\t447\tSARS-CoV-2_1_RIGHT_1\t1\t-\tAAAACGCCTTTTTCAACTTCTACTAAGC\n')
 
 # Headers 
-print(scheme.header)
+print(scheme.headers)
 ['# header!!!']
 
 # Bedlines 
@@ -610,10 +628,14 @@ print(bl.primername)
 
 # change the strand
 bl.strand = &quot;-&quot;
+# See Error
+ValueError: The new stand (-) is incompatible with current primer_class (LEFT). Please use method 'force_change' to update both.
+# Use correct
+bl.force_change(&quot;RIGHT&quot;, &quot;-&quot;)
 print(bl.primername)
 'new-amp-name_1_RIGHT_1'
 
-# this also works in reverse 
+# this also works in reverse (without force_change)
 bl.primername = &quot;final_10_LEFT_alt1&quot;
 print(bl.amplicon_prefix, bl.amplicon_number, bl.strand, bl.primer_suffix, sep= &quot; | &quot; )
 &quot;final | 10 | + | alt1&quot;
@@ -635,7 +657,7 @@ ValueError: Invalid amplicon_prefix: (test_invalid). Must be alphanumeric or hyp
 <h2 id="common-operations">Common Operations</h2>
 <h3 id="converting-between-versions">Converting between versions</h3>
 <p>During development of primer.bed files multiple versions have been used. </p>
-<p>The current version (v2) uses a primername in the form of <code>{amplicon_prefix}_{amplicon_number}_{strand}_{primer_number}</code> (eg <code>SARS-CoV-2_1_RIGHT_1</code>). </p>
+<p>The current version (<strong>v3</strong>) uses a primername in the form of <code>{amplicon_prefix}_{amplicon_number}_{strand}_{primer_number}</code> (eg <code>SARS-CoV-2_1_RIGHT_1</code>). </p>
 <p>The old form typically used <code>{amplicon_prefix}_{amplicon_number}</code> or <code>{amplicon_prefix}_{amplicon_number}_alt1</code> (eg <code>SARS-CoV-2_1_RIGHT</code> | <code>SARS-CoV-2_1_RIGHT_alt</code>) to represent multiple primers for a site. </p>
 <p>Therefore being able to convert between the two is useful as certain tool product / expect different versions. </p>
 <h4 id="updating">Updating</h4>
@@ -736,6 +758,110 @@ group_by_class(bedlines)
 group_primer_pairs(bedlines)
 [([&lt;primalbedtools.bedfiles.BedLine object at 0x105431650&gt;], [&lt;primalbedtools.bedfiles.BedLine object at 0x105431fd0&gt;, &lt;primalbedtools.bedfiles.BedLine object at 0x105432850&gt;]), ([&lt;primalbedtools.bedfiles.BedLine object at 0x105432150&gt;], [&lt;primalbedtools.bedfiles.BedLine object at 0x105432650&gt;])]
 </code></pre>
+<h3 id="export-as-csv">Export as CSV</h3>
+<p>While not a typical use case there will be times when primer.bed files need to be parsed by system out of our control, for example LIMs or Liquid handers. Therefore, all data contained in the bedfile can be exported to a CSV.</p>
+<p>A header row is written by default, containing all bedline information + parsed and separated Attributes.</p>
+<pre><code># gc=fractiongc
+MN908947.3      100     131     example_1_LEFT_1        1       +       CTCTTGTAGATCTGTTCTCTAAACGAACTTT pw=1.4;gc=0.35
+MN908947.3      419     447     example_1_RIGHT_1       1       -       AAAACGCCTTTTTCAACTTCTACTAAGC    pw=1.4;gc=0.36
+MN908947.3      344     366     example_2_LEFT_1        2       +       TCGTACGTGGCTTTGGAGACTC  pw=1.0;gc=0.55
+MN908947.3      707     732     example_2_RIGHT_1       2       -       TCTTCATAAGGATCAGTGCCAAGCT       gc=0.44
+</code></pre>
+<pre><code class="language-python">print(scheme.to_delim_str(use_header_aliases=True))
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>chrom</th>
+<th>start</th>
+<th>end</th>
+<th>primername</th>
+<th>pool</th>
+<th>strand</th>
+<th>sequence</th>
+<th>amplicon_prefix</th>
+<th>amplicon_number</th>
+<th>primer_class_str</th>
+<th>primer_suffix</th>
+<th>pw</th>
+<th>fractiongc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MN908947.3</td>
+<td>100</td>
+<td>131</td>
+<td>example_1_LEFT_1</td>
+<td>1</td>
+<td>+</td>
+<td>CTCTTGTAGATCTGTTCTCTAAACGAACTTT</td>
+<td>example</td>
+<td>1</td>
+<td>LEFT</td>
+<td>1</td>
+<td>1.4</td>
+<td>0.35</td>
+</tr>
+<tr>
+<td>MN908947.3</td>
+<td>419</td>
+<td>447</td>
+<td>example_1_RIGHT_1</td>
+<td>1</td>
+<td>-</td>
+<td>AAAACGCCTTTTTCAACTTCTACTAAGC</td>
+<td>example</td>
+<td>1</td>
+<td>RIGHT</td>
+<td>1</td>
+<td>1.4</td>
+<td>0.36</td>
+</tr>
+<tr>
+<td>MN908947.3</td>
+<td>344</td>
+<td>366</td>
+<td>example_2_LEFT_1</td>
+<td>2</td>
+<td>+</td>
+<td>TCGTACGTGGCTTTGGAGACTC</td>
+<td>example</td>
+<td>2</td>
+<td>LEFT</td>
+<td>1</td>
+<td>1.0</td>
+<td>0.55</td>
+</tr>
+<tr>
+<td>MN908947.3</td>
+<td>707</td>
+<td>732</td>
+<td>example_2_RIGHT_1</td>
+<td>2</td>
+<td>-</td>
+<td>TCTTCATAAGGATCAGTGCCAAGCT</td>
+<td>example</td>
+<td>2</td>
+<td>RIGHT</td>
+<td>1</td>
+<td></td>
+<td>0.44</td>
+</tr>
+</tbody>
+</table>
+<p>Key points:</p>
+<ul>
+<li>
+<p>The table has consistent shape (an empty <code>pw</code> was added for <code>example_2_RIGHT_1</code>)</p>
+</li>
+<li>
+<p>Header line has been written with all the primer attributes parsed into columns </p>
+</li>
+<li>
+<p>Using <code>use_header_aliases=True</code> means that <code>gc</code> has been parsed into <code>fractiongc</code> due to the <code># gc=fractiongc</code> comment line</p>
+</li>
+</ul>
 
 
 
