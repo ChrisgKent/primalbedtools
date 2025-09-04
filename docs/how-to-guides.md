@@ -97,7 +97,7 @@ ValueError: Invalid amplicon_prefix: (test_invalid). Must be alphanumeric or hyp
 
 During development of primer.bed files multiple versions have been used. 
 
-The current version (v2) uses a primername in the form of `{amplicon_prefix}_{amplicon_number}_{strand}_{primer_number}` (eg `SARS-CoV-2_1_RIGHT_1`). 
+The current version (**v3**) uses a primername in the form of `{amplicon_prefix}_{amplicon_number}_{strand}_{primer_number}` (eg `SARS-CoV-2_1_RIGHT_1`). 
 
 The old form typically used `{amplicon_prefix}_{amplicon_number}` or `{amplicon_prefix}_{amplicon_number}_alt1` (eg `SARS-CoV-2_1_RIGHT` | `SARS-CoV-2_1_RIGHT_alt`) to represent multiple primers for a site. 
 
