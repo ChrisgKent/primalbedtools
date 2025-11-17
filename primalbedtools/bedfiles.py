@@ -899,7 +899,7 @@ def bedline_from_str(bedline_str: str) -> tuple[list[str], list[BedLine]]:
         if line.startswith("#"):
             headers.append(line)
         elif line:
-            bedlines.append(create_bedline(line.split("\t")))
+            bedlines.append(create_bedline(line.split()))
 
     return headers, bedlines
 
