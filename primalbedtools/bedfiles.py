@@ -731,8 +731,8 @@ class BedLine:
         if attribute_str is None:
             attribute_str = ""
         else:
-            attribute_str = "\t" + attribute_str
-        return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}{attribute_str}\n"
+            attribute_str = attribute_str
+        return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}\t{attribute_str}\n"
 
     def to_fasta(self, rc=False) -> str:
         """Convert the BedLine object to a FASTA formatted string."""
