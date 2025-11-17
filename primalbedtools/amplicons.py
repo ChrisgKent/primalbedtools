@@ -1,6 +1,6 @@
 from typing import Optional
 
-from primalbedtools.bedfiles import BedLine, PrimerClass, group_amplicons
+from primalbedtools.bedfiles import BedLine, BedLineParser, PrimerClass, group_amplicons
 
 
 class Amplicon:
@@ -87,32 +87,39 @@ class Amplicon:
         chroms = set([bedline.chrom for bedline in all_lines])
         if len(chroms) != 1:
             raise ValueError(
-                f"All bedlines must be on the same chromosome ({','.join(chroms)})"
+                f"Failed to create amplicon as provided bedlines are on different chromosomes ({','.join(map(str, chroms))}):\n\n"
+                + BedLineParser.to_str(bedlines=all_lines, headers=None)
             )
         self.chrom = chroms.pop()
-        # Check all pools are the same
-        pools = set([bedline.pool for bedline in all_lines])
-        if len(pools) != 1:
-            raise ValueError(
-                f"All bedlines must be in the same pool ({','.join(map(str, pools))})"
-            )
-        self.pool = pools.pop()
+
         # Check all amplicon numbers are the same
         amplicon_numbers = set([bedline.amplicon_number for bedline in all_lines])
         if len(amplicon_numbers) != 1:
             raise ValueError(
-                f"All bedlines must be the same amplicon ({','.join(map(str, amplicon_numbers))})"
+                f"Failed to create amplicon as provided bedlines have different amplicon numbers ({','.join(map(str, amplicon_numbers))}):\n\n"
+                + BedLineParser.to_str(bedlines=all_lines, headers=None)
             )
         self.amplicon_number = amplicon_numbers.pop()
+
+        # Check all pools are the same
+        pools = set([bedline.pool for bedline in all_lines])
+        if len(pools) != 1:
+            raise ValueError(
+                f"Failed to create amplicon ({self.prefix}_{self.amplicon_number}) as provided bedlines have different pools ({','.join(map(str, pools))}):\n\n"
+                + BedLineParser.to_str(bedlines=all_lines, headers=None)
+            )
+        self.pool = pools.pop()
 
         # Check both forward and reverse primers are present
         if not self.left:
             raise ValueError(
-                f"No forward primers found for {self.prefix}_{self.amplicon_number}"
+                f"Failed to create amplicon ({self.prefix}_{self.amplicon_number}) as no forward primers found:\n\n"
+                + BedLineParser.to_str(bedlines=all_lines, headers=None)
             )
         if not self.right:
             raise ValueError(
-                f"No reverse primers found for {self.prefix}_{self.amplicon_number}"
+                f"Failed to create amplicon ({self.prefix}_{self.amplicon_number}) as no reverse primers found:\n\n"
+                + BedLineParser.to_str(bedlines=all_lines, headers=None)
             )
 
     def __lt__(self, other):
