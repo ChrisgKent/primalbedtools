@@ -1182,17 +1182,26 @@ def downgrade_primernames(bedlines: list[BedLine]) -> list[BedLine]:
     return bedlines
 
 
-def sort_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
+def sort_bedlines(bedlines: list[BedLine], by_pos: bool = False) -> list[BedLine]:
     """
     Sorts bedlines by chrom, start, end, primername.
     """
     amplicons = group_amplicons(bedlines)
-    amplicons.sort(
-        key=lambda x: (
-            x[PrimerClass.LEFT.value][0].chrom,
-            x[PrimerClass.LEFT.value][0].amplicon_number,
-        )
-    )  # Uses left primers
+
+    if by_pos:
+        amplicons.sort(
+            key=lambda x: (
+                x[PrimerClass.LEFT.value][0].chrom,
+                x[PrimerClass.LEFT.value][0].end,
+            )
+        )  # Uses left primers
+    else:
+        amplicons.sort(
+            key=lambda x: (
+                x[PrimerClass.LEFT.value][0].chrom,
+                x[PrimerClass.LEFT.value][0].amplicon_number,
+            )
+        )  # Uses left primers
 
     # Sorted list
     sorted_list = []
@@ -1355,9 +1364,7 @@ class BedFileModifier:
         return downgrade_primernames(bedlines)
 
     @staticmethod
-    def sort_bedlines(
-        bedlines: list[BedLine],
-    ) -> list[BedLine]:
+    def sort_bedlines(bedlines: list[BedLine], by_pos: bool = False) -> list[BedLine]:
         """Sorts the bedlines by chrom, amplicon number, class, and sequence.
 
         Groups BedLine objects into primer pairs, sorts those pairs by chromosome
@@ -1365,6 +1372,7 @@ class BedFileModifier:
 
         Args:
             bedlines: A list of BedLine objects to sort.
+            by_pos: bool. Sorts the Bedlines by chrom
 
         Returns:
             list[BedLine]: A new list containing the sorted original BedLine objects.
@@ -1374,7 +1382,7 @@ class BedFileModifier:
             >>> bedlines = [BedLine(...)]  # List of BedLine objects
             >>> sorted_lines = BedFileModifier.sort_bedlines(bedlines)
         """
-        return sort_bedlines(bedlines)
+        return sort_bedlines(bedlines, by_pos)
 
     @staticmethod
     def merge_primers(

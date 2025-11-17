@@ -2,9 +2,7 @@ import argparse
 from importlib.metadata import version
 
 from primalbedtools.amplicons import create_amplicons
-from primalbedtools.bedfiles import (
-    BedFileModifier,
-)
+from primalbedtools.bedfiles import BedFileModifier
 from primalbedtools.fasta import read_fasta
 from primalbedtools.remap import remap
 from primalbedtools.scheme import Scheme
@@ -31,8 +29,16 @@ def main():
     )
 
     # Sort subcommand
-    sort_parser = subparsers.add_parser("sort", help="Sort BED file")
+    sort_parser = subparsers.add_parser(
+        "sort", help="Sort BED file by chrom and amplicon number"
+    )
     sort_parser.add_argument("bed", type=str, help="Input BED file")
+    sort_parser.add_argument(
+        "-p",
+        "--by-pos",
+        action="store_true",
+        help="Sorts by chrom and amplicon position",
+    )
 
     # Update subcommand
     update_parser = subparsers.add_parser(
@@ -108,7 +114,7 @@ def main():
         print(scheme.to_str(), end="")
         exit(0)
     elif args.subparser_name == "sort":
-        scheme.bedlines = BedFileModifier.sort_bedlines(scheme.bedlines)
+        scheme.bedlines = BedFileModifier.sort_bedlines(scheme.bedlines, args.by_pos)
         print(scheme.to_str(), end="")
         exit(0)
     elif args.subparser_name == "update":
