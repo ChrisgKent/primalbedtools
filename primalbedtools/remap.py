@@ -67,7 +67,9 @@ def remap(
             continue
 
         msa_start = from_index_to_msa_index[bedline.start]
-        msa_end = from_index_to_msa_index[bedline.end]
+        msa_end = from_index_to_msa_index.get(
+            bedline.end, max(from_index_to_msa_index.keys())
+        )
 
         # Check for perfect mapping
         if (

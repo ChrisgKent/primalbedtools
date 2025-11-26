@@ -3,10 +3,7 @@ import unittest
 
 from primalbedtools.bedfiles import BedLine
 from primalbedtools.fasta import read_fasta
-from primalbedtools.remap import (
-    create_mapping_list,
-    remap,
-)
+from primalbedtools.remap import create_mapping_list, remap
 
 
 class TestMappingList(unittest.TestCase):
