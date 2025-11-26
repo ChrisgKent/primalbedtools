@@ -265,7 +265,7 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(bedline.primer_class, PrimerClass.LEFT)
         self.assertEqual(
             bedline.to_bed(),
-            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n",
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n",
         )
 
     def test_bedline_create_right(self):
@@ -303,7 +303,7 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(bedline.primer_class, PrimerClass.RIGHT)
         self.assertEqual(
             bedline.to_bed(),
-            "chr1\t100\t200\tscheme_1_RIGHT\t1\t-\tACGT\n",
+            "chr1\t100\t200\tscheme_1_RIGHT\t1\t-\tACGT\t\n",
         )
 
     def test_bedline_create_empty_weight(self):
@@ -335,7 +335,7 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(bedline.ipool, 0)
         self.assertEqual(
             bedline.to_bed(),
-            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n",
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n",
         )
 
     def test_bedline_create_probe(self):
@@ -601,7 +601,7 @@ class TestBedLine(unittest.TestCase):
         )
         self.assertEqual(
             bedline.to_bed(),
-            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n",
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n",
         )
         # Provide weight
         bedline.weight = 1.0
@@ -622,7 +622,7 @@ class TestBedLine(unittest.TestCase):
         )
         self.assertEqual(
             bedline.to_bed(),
-            "chr1\t100\t200\tscheme_1_PROBE\t1\t+\tACGT\n",
+            "chr1\t100\t200\tscheme_1_PROBE\t1\t+\tACGT\t\n",
         )
         # Provide weight
         bedline.weight = 1.0
@@ -910,7 +910,7 @@ class TestBedLine(unittest.TestCase):
         self.assertEqual(bedline.attributes, {})
         # Ensure empty dict is not written to bed
         self.assertEqual(
-            bedline.to_bed(), "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
+            bedline.to_bed(), "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n"
         )
 
         # Set string. Test pw is converted to float
@@ -1005,17 +1005,17 @@ class TestCreateBedfileStr(unittest.TestCase):
     def test_create_bedfile_str(self):
         bedfile_str = create_bedfile_str(["#header1"], [self.bedline])
         self.assertEqual(
-            bedfile_str, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
+            bedfile_str, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n"
         )
 
     def test_create_bedfile_str_no_header(self):
         bedfile_str = create_bedfile_str([], [self.bedline])
-        self.assertEqual(bedfile_str, "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n")
+        self.assertEqual(bedfile_str, "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n")
 
     def test_create_bedfile_str_malformed_header(self):
         bedfile_str = create_bedfile_str(["header1"], [self.bedline])
         self.assertEqual(
-            bedfile_str, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
+            bedfile_str, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n"
         )
 
 
@@ -1037,7 +1037,7 @@ class TestWriteBedfile(unittest.TestCase):
         with open(self.output_bed_path) as f:
             content = f.read()
         self.assertEqual(
-            content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
+            content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n"
         )
         # Write weighted bedline
         bedline.weight = 1.0
@@ -1308,7 +1308,7 @@ class TestBedLineParser(unittest.TestCase):
         )
         bedfile_str = BedLineParser.to_str(["#header1"], [bedline])
         self.assertEqual(
-            bedfile_str, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
+            bedfile_str, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n"
         )
 
     def test_bedline_parser_to_file(self):
@@ -1325,7 +1325,7 @@ class TestBedLineParser(unittest.TestCase):
         with open(self.OUTFILE) as f:
             content = f.read()
         self.assertEqual(
-            content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\n"
+            content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n"
         )
 
     def tearDown(self) -> None:
