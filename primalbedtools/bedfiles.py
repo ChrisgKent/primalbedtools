@@ -2,6 +2,7 @@ import enum
 import pathlib
 import re
 import typing
+from functools import total_ordering
 from typing import Optional, Union
 
 from primalbedtools.utils import expand_ambiguous_bases, rc_seq, strip_all_white_space
@@ -29,6 +30,14 @@ class PrimerClass(enum.Enum):
     LEFT = "LEFT"
     RIGHT = "RIGHT"
     PROBE = "PROBE"
+
+
+# Primer class order: LEFT, PROBE, RIGHT
+PRIMER_CLASS_ORDER = {
+    PrimerClass.LEFT: 0,
+    PrimerClass.PROBE: 1,
+    PrimerClass.RIGHT: 2,
+}
 
 
 class Strand(enum.Enum):
@@ -291,6 +300,7 @@ def validate_primer_name(primername: str) -> tuple[str, str, str, Union[str, Non
     return (parts[0], parts[1], parts[2], parts[3])
 
 
+@total_ordering
 class BedLine:
     """A class representing a single line in a primer.bed file.
 
@@ -406,6 +416,37 @@ class BedLine:
             raise ValueError(
                 f"primername ({self.primername}) implies direction ({self.primer_class_str}), which is incompatible with ({strand})"
             )
+
+    def __eq__(self, other):
+        if not isinstance(other, BedLine):
+            return NotImplemented
+        return self.to_bed() == other.to_bed()
+
+    def __lt__(self, other):
+        if not isinstance(other, BedLine):
+            return NotImplemented
+        return self._sort_key() < other._sort_key()
+
+    def _sort_key(self):
+        """Return a tuple for sorting."""
+
+        # Primer suffix order: int, str, None
+        suffix = self.primer_suffix
+        if isinstance(suffix, int):
+            suffix_key = (0, suffix)
+        elif isinstance(suffix, str):
+            suffix_key = (1, suffix)
+        else:
+            suffix_key = (2, "")  # None
+
+        return (
+            self.chrom,
+            self.amplicon_number,
+            PRIMER_CLASS_ORDER.get(self.primer_class, 3),
+            suffix_key,
+            self.sequence,
+            self.primername,
+        )
 
     @property
     def chrom(self):
@@ -1182,9 +1223,26 @@ def downgrade_primernames(bedlines: list[BedLine]) -> list[BedLine]:
     return bedlines
 
 
-def sort_bedlines(bedlines: list[BedLine], by_pos: bool = False) -> list[BedLine]:
-    """
-    Sorts bedlines by chrom, start, end, primername.
+def sort_bedlines(bedlines: list[BedLine], by_pos: bool = True) -> list[BedLine]:
+    """Sorts the bedlines by chrom, amplicon number, class, and sequence.
+
+    Converts the bedlines into amplicons and sorts by chromosome and left primer position (or amplicon number).
+    Within amplicons bedlines are sorted by PrimerClass (LEFT, PROBE, RIGHT), then PrimerSuffix or position (start, end) then sequence.
+
+
+    Groups BedLine objects into primer pairs, sorts those pairs by chromosome, left primer position, then returns a flattened list of the sorted BedLine objects.
+
+    Args:
+        bedlines: A list of BedLine objects to sort.
+        by_pos: bool. Sorts the Bedlines by chrom
+
+    Returns:
+        list[BedLine]: A new list containing the sorted original BedLine objects.
+
+    Examples:
+        >>> from primalbedtools.bedfiles import BedLine, BedFileModifier
+        >>> bedlines = [BedLine(...)]  # List of BedLine objects
+        >>> sorted_lines = BedFileModifier.sort_bedlines(bedlines)
     """
     amplicons = group_amplicons(bedlines)
 
@@ -1206,27 +1264,20 @@ def sort_bedlines(bedlines: list[BedLine], by_pos: bool = False) -> list[BedLine
     # Sorted list
     sorted_list = []
 
+    # Sort bedlines within amplicons
     for dicts in amplicons:
+        bls = []
         # Left primers
-        lp = dicts.get(PrimerClass.LEFT.value, [])
-        lp.sort(
-            key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
-        )
-        sorted_list.extend(lp)
+        bls.extend(dicts.get(PrimerClass.LEFT.value, []))
 
         # Probes
-        pp = dicts.get(PrimerClass.PROBE.value, [])
-        pp.sort(
-            key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
-        )
-        sorted_list.extend(pp)
+        bls.extend(dicts.get(PrimerClass.PROBE.value, []))
 
         # Right Primers
-        rp = dicts.get(PrimerClass.RIGHT.value, [])
-        rp.sort(
-            key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
-        )
-        sorted_list.extend(rp)
+        bls.extend(dicts.get(PrimerClass.RIGHT.value, []))
+
+        bls.sort()
+        sorted_list.extend(bls)
 
     return sorted_list
 

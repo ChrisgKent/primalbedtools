@@ -105,13 +105,13 @@ class Scheme:
         return write_bedfile(path, self.headers, self.bedlines)
 
     # modifiers
-    def sort_bedlines(self):
+    def sort_bedlines(self, by_pos: bool = False):
         """Sort the bedlines in canonical order in place.
 
-        Sorts bedlines by chromosome, amplicon number, direction, and primer suffix
+        Sorts bedlines by chromosome, amplicon number (or position), direction, and primer suffix
         to ensure consistent ordering across the scheme.
         """
-        self.bedlines = sort_bedlines(self.bedlines)
+        self.bedlines = sort_bedlines(self.bedlines, by_pos)
 
     def merge_primers(self):
         """merges bedlines with the same chrom, amplicon number and class in place"""

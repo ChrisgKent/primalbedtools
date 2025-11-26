@@ -39,6 +39,9 @@ TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.weights.bed"
 TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.weights.bed"
 TEST_ATTRIBUTES_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.attributes.bed"
 TEST_PROBE_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.probe.bed"
+TEST_PANEL_BEDFILE = pathlib.Path(__file__).parent / "inputs/panel.input.bed"
+
+random.seed(100)
 
 
 class TestValidationFuncs(unittest.TestCase):
@@ -1422,20 +1425,6 @@ class TestModifyBedLines(unittest.TestCase):
         new_primername = {bl.primername for bl in new_bedlines}
         self.assertEqual(new_primername, {"test_1_LEFT", "test_1_LEFT_alt1"})
 
-    def test_sort_bedlines(self):
-        # Read in a bedfile
-        headers, bedlines = BedLineParser.from_file(TEST_BEDFILE)
-
-        # Randomly shuffle the bedlines
-        random.seed(100)
-        random_bedlines = random.sample(bedlines, len(bedlines))
-
-        # Sort the bedlines
-        sorted_bedlines = sort_bedlines(random_bedlines)
-
-        # Check that the bedlines are sorted
-        self.assertEqual(sorted_bedlines, bedlines)
-
     def test_merge_primers_single(self):
         bedlines = [
             BedLine(
@@ -1543,6 +1532,119 @@ class TestModifyBedLines(unittest.TestCase):
         primer_names = [bl.primername for bl in bedlines]
 
         self.assertEqual(expected_names, primer_names)
+
+
+class TestBedLineSortOrder(unittest.TestCase):
+    """
+    Test the default sort order of bedlines
+    """
+
+    def test_sort_funcs_bedlines(self):
+        """
+        Tests the custom sort function
+        """
+        # Pass cases
+        for bl_path in [TEST_PROBE_BEDFILE, TEST_BEDFILE]:
+            # Read in a bedfile
+            _headers, bedlines = BedLineParser.from_file(bl_path)
+
+            # Randomly shuffle the bedlines
+            random_bedlines = random.sample(bedlines, len(bedlines))
+            self.assertNotEqual(
+                random_bedlines,
+                bedlines,
+                f"shuffled bedlines are in same order as original. {bl_path.name}",
+            )
+            # Sort the bedlines
+            sorted_bedlines = sort_bedlines(random_bedlines, by_pos=True)
+
+            # Check that the bedlines are sorted
+            self.assertEqual(
+                sorted_bedlines,
+                bedlines,
+                f"shuffled bedlines are in different order as original. {bl_path.name}",
+            )
+
+    def test_sort_methods_bedlines(self):
+        """
+        Tests the default class order. ie sorted() / sort
+        """
+        # Read in a bedfile
+        for bl_path in [TEST_PROBE_BEDFILE, TEST_BEDFILE, TEST_PANEL_BEDFILE]:
+            _headers, bedlines = BedLineParser.from_file(bl_path)
+            # Randomly shuffle the bedlines
+            random_bedlines = random.sample(bedlines, len(bedlines))
+            # check bedlines are now different
+            self.assertNotEqual(
+                random_bedlines,
+                bedlines,
+                f"shuffled bedlines are in same order as original. {bl_path.name}",
+            )
+            # Sort the bedlines
+            sorted_bedlines = sorted(random_bedlines)
+            # Check that the bedlines back in original order
+            self.assertEqual(
+                sorted_bedlines,
+                bedlines,
+                f"shuffled bedlines are in different order as original. {bl_path.name}",
+            )
+
+    def test_sort_primercloud(self):
+        """
+        This ensures that the correct sort order is applied for primers in the same cloud
+
+        """
+
+        bedlines = [
+            BedLine(
+                chrom="chr1",
+                start=100,
+                end=120,
+                primername="test_1_LEFT_1",
+                pool=1,
+                strand="+",
+                sequence="ACGT",
+            ),
+            BedLine(
+                chrom="chr1",
+                start=110,
+                end=130,
+                primername="test_1_LEFT_3",
+                pool=1,
+                strand="+",
+                sequence="ACGT",
+            ),
+            BedLine(
+                chrom="chr1",
+                start=110,
+                end=130,
+                primername="test_1_LEFT_2",
+                pool=1,
+                strand="+",
+                sequence="ACGT",
+            ),
+        ]
+
+        # Test that bedlines are sorted based on primersuffix
+        sorted_bls = sorted(bedlines)
+        self.assertEqual(
+            [bl.primername for bl in sorted_bls],
+            ["test_1_LEFT_1", "test_1_LEFT_2", "test_1_LEFT_3"],
+        )
+        # replace suffix with alt1
+        bedlines[2].primer_suffix = "alt1"
+        sorted_bls = sorted(bedlines)
+        self.assertEqual(
+            [bl.primername for bl in sorted_bls],
+            ["test_1_LEFT_1", "test_1_LEFT_3", "test_1_LEFT_alt1"],
+        )
+        # replace suffix with None
+        bedlines[1].primer_suffix = None
+        sorted_bls = sorted(bedlines)
+        self.assertEqual(
+            [bl.primername for bl in sorted_bls],
+            ["test_1_LEFT_1", "test_1_LEFT_alt1", "test_1_LEFT"],
+        )
 
 
 if __name__ == "__main__":
