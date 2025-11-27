@@ -32,14 +32,14 @@ from primalbedtools.bedfiles import (
     version_primername,
     write_bedfile,
 )
-
-TEST_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.bed"
-TEST_V2_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.v2.bed"
-TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.weights.bed"
-TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.weights.bed"
-TEST_ATTRIBUTES_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.attributes.bed"
-TEST_PROBE_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.probe.bed"
-TEST_PANEL_BEDFILE = pathlib.Path(__file__).parent / "inputs/panel.input.bed"
+from tests.infiles import (
+    TEST_ATTRIBUTES_BEDFILE,
+    TEST_BEDFILE,
+    TEST_PANEL_BEDFILE,
+    TEST_PROBE_BEDFILE,
+    TEST_V2_BEDFILE,
+    TEST_WEIGHTS_BEDFILE,
+)
 
 random.seed(100)
 

@@ -1,10 +1,8 @@
-import pathlib
 import unittest
 from io import StringIO
 
 from primalbedtools.fasta import read_fasta
-
-FASTA_PATH = pathlib.Path(__file__).parent / "inputs/msa.input.fasta"
+from tests.infiles import FASTA_PATH
 
 
 class TestFasta(unittest.TestCase):

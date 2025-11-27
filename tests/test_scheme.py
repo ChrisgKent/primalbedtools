@@ -1,15 +1,11 @@
-import pathlib
 import random
 import unittest
 
 from primalbedtools.scheme import DEFAULT_CSV_HEADERS, Scheme
-
-TEST_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.bed"
-TEST_V2_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.v2.bed"
-TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.weights.bed"
-TEST_WEIGHTS_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.weights.bed"
-TEST_ATTRIBUTES_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.attributes.bed"
-TEST_PROBE_BEDFILE = pathlib.Path(__file__).parent / "inputs/test.probe.bed"
+from tests.infiles import (
+    TEST_ATTRIBUTES_BEDFILE,
+    TEST_PROBE_BEDFILE,
+)
 
 
 class TestScheme(unittest.TestCase):
