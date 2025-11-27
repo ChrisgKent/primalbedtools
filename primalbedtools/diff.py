@@ -1,4 +1,5 @@
 from difflib import ndiff, unified_diff
+from typing import Optional
 
 from primalbedtools.bedfiles import BedLine, BedLineParser
 
@@ -6,8 +7,8 @@ from primalbedtools.bedfiles import BedLine, BedLineParser
 def create_normalised_bedfile_str(
     bedlines1: list[BedLine],
     bedlines2: list[BedLine],
-    header1: list[str] | None = None,
-    header2: list[str] | None = None,
+    header1: Optional[list[str]] = None,
+    header2: Optional[list[str]] = None,
     ignore_order: bool = True,
     ignore_attr: bool = False,
     ignore_header: bool = False,
@@ -20,8 +21,8 @@ def create_normalised_bedfile_str(
     Args:
         bedlines1 (list[BedLine]): The first list of BedLine objects.
         bedlines2 (list[BedLine]): The second list of BedLine objects.
-        header1 (list[str] | None, optional): Headers for the first bedfile. Defaults to None.
-        header2 (list[str] | None, optional): Headers for the second bedfile. Defaults to None.
+        header1 (Optional[list[str]] , optional): Headers for the first bedfile. Defaults to None.
+        header2 (Optional[list[str]] , optional): Headers for the second bedfile. Defaults to None.
         ignore_order (bool, optional): If True, sorts bedlines before string generation. Defaults to True.
         ignore_attr (bool, optional): If True, excludes attributes from the string representation. Defaults to False.
         ignore_header (bool, optional): If True, excludes headers from the string representation. Defaults to False.
@@ -94,8 +95,8 @@ def diff_sequence(
 def ndiff_bedlines(
     bedlines1: list[BedLine],
     bedlines2: list[BedLine],
-    header1: list[str] | None = None,
-    header2: list[str] | None = None,
+    header1: Optional[list[str]] = None,
+    header2: Optional[list[str]] = None,
     ignore_order: bool = True,
     ignore_attr: bool = False,
     ignore_header: bool = False,
@@ -109,8 +110,8 @@ def ndiff_bedlines(
     Args:
         bedlines1 (list[BedLine]): The first list of BedLine objects.
         bedlines2 (list[BedLine]): The second list of BedLine objects.
-        header1 (list[str] | None, optional): Headers for the first bedfile. Defaults to None.
-        header2 (list[str] | None, optional): Headers for the second bedfile. Defaults to None.
+        header1 (Optional[list[str]] , optional): Headers for the first bedfile. Defaults to None.
+        header2 (Optional[list[str]] , optional): Headers for the second bedfile. Defaults to None.
         ignore_order (bool, optional): If True, sorts bedlines before comparison. Defaults to True.
         ignore_attr (bool, optional): If True, excludes attributes from comparison. Defaults to False.
         ignore_header (bool, optional): If True, excludes headers from comparison. Defaults to False.
@@ -141,8 +142,8 @@ def ndiff_bedlines(
 def unified_diff_bedlines(
     bedlines1: list[BedLine],
     bedlines2: list[BedLine],
-    header1: list[str] | None = None,
-    header2: list[str] | None = None,
+    header1: Optional[list[str]] = None,
+    header2: Optional[list[str]] = None,
     ignore_order: bool = True,
     ignore_attr: bool = False,
     ignore_header: bool = False,
@@ -155,8 +156,8 @@ def unified_diff_bedlines(
     Args:
         bedlines1 (list[BedLine]): The first list of BedLine objects.
         bedlines2 (list[BedLine]): The second list of BedLine objects.
-        header1 (list[str] | None, optional): Headers for the first bedfile. Defaults to None.
-        header2 (list[str] | None, optional): Headers for the second bedfile. Defaults to None.
+        header1 (Optional[list[str]] , optional): Headers for the first bedfile. Defaults to None.
+        header2 (Optional[list[str]] , optional): Headers for the second bedfile. Defaults to None.
         ignore_order (bool, optional): If True, sorts bedlines before comparison. Defaults to True.
         ignore_attr (bool, optional): If True, excludes attributes from comparison. Defaults to False.
         ignore_header (bool, optional): If True, excludes headers from comparison. Defaults to False.
