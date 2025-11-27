@@ -764,12 +764,10 @@ class BedLine:
         """Return 'LEFT' or 'RIGHT' based on strand"""
         return "LEFT" if self.strand == Strand.FORWARD.value else "RIGHT"
 
-    def to_bed(self) -> str:
+    def to_bed(self, ignore_attr: bool = False) -> str:
         """Convert the BedLine object to a BED formatted string."""
-        # If a attributes is provided print. Else print empty string
-
         attribute_str = create_primer_attributes_str(self.attributes)
-        if attribute_str is None:
+        if attribute_str is None or ignore_attr:
             attribute_str = ""
         else:
             attribute_str = attribute_str
@@ -837,7 +835,11 @@ class BedLineParser:
         return bedline_from_str(bedfile_str)
 
     @staticmethod
-    def to_str(headers: typing.Optional[list[str]], bedlines: list[BedLine]) -> str:
+    def to_str(
+        headers: typing.Optional[list[str]],
+        bedlines: list[BedLine],
+        ignore_attr: bool = False,
+    ) -> str:
         """Creates a BED file string from headers and BedLine objects.
 
         Combines header lines and BedLine objects into a properly formatted
@@ -857,7 +859,7 @@ class BedLineParser:
             >>> headers = ["Track name=primers"]
             >>> bed_string = BedLineParser.to_str(headers, bedlines)
         """
-        return create_bedfile_str(headers, bedlines)
+        return create_bedfile_str(headers, bedlines, ignore_attr)
 
     @staticmethod
     def to_file(
@@ -954,7 +956,9 @@ def read_bedfile(
 
 
 def create_bedfile_str(
-    headers: typing.Optional[list[str]], bedlines: list[BedLine]
+    headers: typing.Optional[list[str]],
+    bedlines: list[BedLine],
+    ignore_attr: bool = False,
 ) -> str:
     bedfile_str: list[str] = []
     if headers:
@@ -965,7 +969,7 @@ def create_bedfile_str(
             bedfile_str.append(header + "\n")
     # Add bedlines
     for bedline in bedlines:
-        bedfile_str.append(bedline.to_bed())
+        bedfile_str.append(bedline.to_bed(ignore_attr))
 
     return "".join(bedfile_str)
 
@@ -974,9 +978,10 @@ def write_bedfile(
     bedfile: typing.Union[str, pathlib.Path],
     headers: typing.Optional[list[str]],
     bedlines: list[BedLine],
+    ignore_attr: bool = False,
 ):
     with open(bedfile, "w") as f:
-        f.write(create_bedfile_str(headers, bedlines))
+        f.write(create_bedfile_str(headers, bedlines, ignore_attr))
 
 
 def group_by_chrom(list_bedlines: list[BedLine]) -> dict[str, list[BedLine]]:
