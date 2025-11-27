@@ -3,6 +3,7 @@ from importlib.metadata import version
 
 from primalbedtools.amplicons import create_amplicons
 from primalbedtools.bedfiles import BedFileModifier
+from primalbedtools.diff import ndiff_bedlines, unified_diff_bedlines
 from primalbedtools.fasta import read_fasta
 from primalbedtools.remap import remap
 from primalbedtools.scheme import Scheme
@@ -102,8 +103,83 @@ def main():
         help="Should header aliases be used.",
         action="store_true",
     )
+    # diff subcommand
+    diff_parser = subparsers.add_parser(
+        "diff", help="Calculate the difference between two bedfiles"
+    )
+    diff_parser.add_argument("bedfile1", type=str, help="First bedfile")
+    diff_parser.add_argument("bedfile2", type=str, help="Second bedfile")
+    diff_parser.add_argument(
+        "--ndiff",
+        action="store_true",
+        help="Output ndiff format (default is unified)",
+    )
+    diff_parser.add_argument(
+        "--ignore-order",
+        action="store_true",
+        default=True,
+        help="Ignore order of bedlines (default: True)",
+    )
+    diff_parser.add_argument(
+        "--no-ignore-order",
+        action="store_false",
+        dest="ignore_order",
+        help="Do not ignore order of bedlines",
+    )
+    diff_parser.add_argument(
+        "--ignore-attr",
+        action="store_true",
+        help="Ignore attributes during comparison",
+    )
+    diff_parser.add_argument(
+        "--ignore-header",
+        action="store_true",
+        help="Ignore headers during comparison",
+    )
+    diff_parser.add_argument(
+        "--ignore-primer-prefix",
+        action="store_true",
+        help="Ignore primer name prefixes during comparison",
+    )
+    diff_parser.add_argument(
+        "--ignore-no-diff",
+        action="store_true",
+        help="Ignore lines with no differences (only for ndiff)",
+    )
 
     args = parser.parse_args()
+
+    if args.subparser_name == "diff":
+        scheme1 = Scheme.from_file(args.bedfile1)
+        scheme2 = Scheme.from_file(args.bedfile2)
+
+        if args.ndiff:
+            diff_gen = ndiff_bedlines(
+                scheme1.bedlines,
+                scheme2.bedlines,
+                header1=scheme1.headers,
+                header2=scheme2.headers,
+                ignore_order=args.ignore_order,
+                ignore_attr=args.ignore_attr,
+                ignore_header=args.ignore_header,
+                ignore_no_diff=args.ignore_no_diff,
+                ignore_primer_prefix=args.ignore_primer_prefix,
+            )
+        else:
+            diff_gen = unified_diff_bedlines(
+                scheme1.bedlines,
+                scheme2.bedlines,
+                header1=scheme1.headers,
+                header2=scheme2.headers,
+                ignore_order=args.ignore_order,
+                ignore_attr=args.ignore_attr,
+                ignore_header=args.ignore_header,
+                ignore_primer_prefix=args.ignore_primer_prefix,
+            )
+
+        for line in diff_gen:
+            print(line, end="")
+        exit(0)
 
     # Read in the scheme
     scheme = Scheme.from_file(args.bed)

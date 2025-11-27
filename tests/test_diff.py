@@ -184,6 +184,38 @@ class TestNDiff(unittest.TestCase):
         # Should see the removed line as a deletion
         self.assertTrue(any(line.startswith("- ") for line in diffs))
 
+    def test_ignore_primer_prefix(self):
+        """
+        Test that ignore_primer_prefix works correctly.
+        """
+        # Change the amplicon prefix of the first bedline in scheme2
+        # This will change the primername, e.g. from example_1_LEFT_1 to newprefix_1_LEFT_1
+        self.scheme2.bedlines[0].amplicon_prefix = "newprefix"
+
+        # With ignore_primer_prefix=False, should see differences
+        diffs = list(
+            ndiff_bedlines(
+                self.scheme1.bedlines,
+                self.scheme2.bedlines,
+                ignore_primer_prefix=False,
+                ignore_no_diff=True,
+            )
+        )
+        self.assertNotEqual(diffs, [])
+
+        # With ignore_primer_prefix=True, should see no differences
+        # Note: The implementation replaces the prefix with "placeholder" in the string representation
+        # So if everything else is the same, the diff should be empty.
+        diffs = list(
+            ndiff_bedlines(
+                self.scheme1.bedlines,
+                self.scheme2.bedlines,
+                ignore_primer_prefix=True,
+                ignore_no_diff=True,
+            )
+        )
+        self.assertEqual(diffs, [])
+
 
 class TestUnifiedDiff(unittest.TestCase):
     def setUp(self) -> None:
@@ -314,6 +346,33 @@ class TestUnifiedDiff(unittest.TestCase):
             )
         )
         self.assertNotEqual(diffs, [])
+
+    def test_ignore_primer_prefix(self):
+        """
+        Test that ignore_primer_prefix works correctly.
+        """
+        # Change the amplicon prefix of the first bedline in scheme2
+        self.scheme2.bedlines[0].amplicon_prefix = "newprefix"
+
+        # With ignore_primer_prefix=False, should see differences
+        diffs = list(
+            unified_diff_bedlines(
+                self.scheme1.bedlines,
+                self.scheme2.bedlines,
+                ignore_primer_prefix=False,
+            )
+        )
+        self.assertNotEqual(diffs, [])
+
+        # With ignore_primer_prefix=True, should see no differences
+        diffs = list(
+            unified_diff_bedlines(
+                self.scheme1.bedlines,
+                self.scheme2.bedlines,
+                ignore_primer_prefix=True,
+            )
+        )
+        self.assertEqual(diffs, [])
 
 
 class TestDiffPrimerNames(unittest.TestCase):

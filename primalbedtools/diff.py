@@ -3,6 +3,8 @@ from typing import Optional
 
 from primalbedtools.bedfiles import BedLine, BedLineParser
 
+PLACEHOLDER_STR = "<placeholder>"
+
 
 def create_normalised_bedfile_str(
     bedlines1: list[BedLine],
@@ -12,6 +14,7 @@ def create_normalised_bedfile_str(
     ignore_order: bool = True,
     ignore_attr: bool = False,
     ignore_header: bool = False,
+    ignore_primer_prefix: bool = False,
 ) -> tuple[str, str]:
     """Creates normalised bedfile strings formatted for diff comparison.
 
@@ -26,6 +29,8 @@ def create_normalised_bedfile_str(
         ignore_order (bool, optional): If True, sorts bedlines before string generation. Defaults to True.
         ignore_attr (bool, optional): If True, excludes attributes from the string representation. Defaults to False.
         ignore_header (bool, optional): If True, excludes headers from the string representation. Defaults to False.
+        ignore_primer_prefix (bool, optional): If True, excludes the primername prefix from the string representation. Defaults to False.
+
 
     Returns:
         tuple[str, str]: A tuple containing the two normalised bedfile strings.
@@ -40,6 +45,16 @@ def create_normalised_bedfile_str(
     else:
         bed_str1 = BedLineParser.to_str(header1, bedlines1, ignore_attr)
         bed_str2 = BedLineParser.to_str(header2, bedlines2, ignore_attr)
+
+    # Find replace the prefix
+    if ignore_primer_prefix:
+        bl1_pn_prefixs = {bl.amplicon_prefix for bl in bedlines1}
+        for bl1_pn_prefix in bl1_pn_prefixs:
+            bed_str1 = bed_str1.replace(bl1_pn_prefix, PLACEHOLDER_STR)
+
+        bl2_pn_prefixs = {bl.amplicon_prefix for bl in bedlines2}
+        for bl2_pn_prefix in bl2_pn_prefixs:
+            bed_str2 = bed_str2.replace(bl2_pn_prefix, PLACEHOLDER_STR)
 
     return (bed_str1, bed_str2)
 
@@ -101,6 +116,7 @@ def ndiff_bedlines(
     ignore_attr: bool = False,
     ignore_header: bool = False,
     ignore_no_diff: bool = False,
+    ignore_primer_prefix: bool = False,
 ):
     """Generates a difference report between two sets of bedlines using difflib.ndiff.
 
@@ -116,6 +132,7 @@ def ndiff_bedlines(
         ignore_attr (bool, optional): If True, excludes attributes from comparison. Defaults to False.
         ignore_header (bool, optional): If True, excludes headers from comparison. Defaults to False.
         ignore_no_diff (bool, optional): If True, filters out lines that are identical (starting with "  "). Defaults to False.
+        ignore_primer_prefix (bool, optional): If True, excludes the primername prefix from the string representation. Defaults to False.
 
     Returns:
         Iterator[str]: A generator yielding difference lines (strings).
@@ -128,6 +145,7 @@ def ndiff_bedlines(
         ignore_attr=ignore_attr,
         ignore_order=ignore_order,
         ignore_header=ignore_header,
+        ignore_primer_prefix=ignore_primer_prefix,
     )
 
     diff_generator = ndiff(
@@ -147,6 +165,7 @@ def unified_diff_bedlines(
     ignore_order: bool = True,
     ignore_attr: bool = False,
     ignore_header: bool = False,
+    ignore_primer_prefix: bool = False,
 ):
     """Generates a unified difference report between two sets of bedlines.
 
@@ -161,6 +180,7 @@ def unified_diff_bedlines(
         ignore_order (bool, optional): If True, sorts bedlines before comparison. Defaults to True.
         ignore_attr (bool, optional): If True, excludes attributes from comparison. Defaults to False.
         ignore_header (bool, optional): If True, excludes headers from comparison. Defaults to False.
+        ignore_primer_prefix (bool, optional): If True, excludes the primername prefix from the string representation. Defaults to False.
 
     Returns:
         Iterator[str]: A generator yielding unified diff lines (strings).
@@ -175,6 +195,7 @@ def unified_diff_bedlines(
         ignore_attr=ignore_attr,
         ignore_order=ignore_order,
         ignore_header=ignore_header,
+        ignore_primer_prefix=ignore_primer_prefix,
     )
 
     return unified_diff(
