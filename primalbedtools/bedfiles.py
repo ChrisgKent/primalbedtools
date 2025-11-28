@@ -186,10 +186,17 @@ def create_primer_attributes_str(
     """
     if primer_attributes is None or not primer_attributes:
         return None
-    return ";".join(
-        f"{strip_all_white_space(k)}={strip_all_white_space(str(v))}"
-        for k, v in primer_attributes.items()
-    )
+
+    attr_list = []
+    for k, v in primer_attributes.items():
+        clean_k = strip_all_white_space(str(k))
+        clean_v = strip_all_white_space(str(v))
+
+        if not clean_k or not clean_v:
+            continue
+        attr_list.append(f"{clean_k}={clean_v}")
+
+    return ";".join(attr_list) if attr_list else None
 
 
 def lr_string_to_strand_char(s: str) -> str:

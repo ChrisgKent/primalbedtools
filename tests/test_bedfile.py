@@ -128,6 +128,19 @@ class TestAttributesFuncs(unittest.TestCase):
         assert result is not None
         self.assertDictEqual(result, {PRIMER_WEIGHT_KEY: "1.0"})
 
+    def test_create_primer_attributes_str_invalid(self):
+        # Test empty value - should be skipped
+        attr_str = create_primer_attributes_str({"mut": "", "valid": "1"})
+        self.assertEqual(attr_str, "valid=1")
+
+        # Test empty key - should be skipped
+        attr_str = create_primer_attributes_str({"": "val", "valid": "1"})
+        self.assertEqual(attr_str, "valid=1")
+
+        # Test all invalid - should return None
+        attr_str = create_primer_attributes_str({"mut": ""})
+        self.assertIsNone(attr_str)
+
     def test_parse_primer_attributes_str_invalid(self):
         # error ;
         primer_attr = ";"
@@ -1645,7 +1658,3 @@ class TestBedLineSortOrder(unittest.TestCase):
             [bl.primername for bl in sorted_bls],
             ["test_1_LEFT_1", "test_1_LEFT_alt1", "test_1_LEFT"],
         )
-
-
-if __name__ == "__main__":
-    unittest.main()
