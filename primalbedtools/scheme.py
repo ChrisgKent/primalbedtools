@@ -148,18 +148,22 @@ class Scheme:
         self, include_headers: bool = True, use_header_aliases: bool = False
     ):
         return to_delim_str(
-            self, include_headers=include_headers, use_header_aliases=use_header_aliases
+            self,
+            include_headers=include_headers,
+            use_header_aliases=use_header_aliases,
         )
 
 
 def to_delim_str(
-    scheme: Scheme, include_headers: bool = True, use_header_aliases: bool = False
+    scheme: Scheme,
+    include_headers: bool = True,
+    use_header_aliases: bool = False,
 ) -> str:
     """
     Turns a bedfile into a full expanded delim separated file
     """
     # Define the default headers
-    headers = DEFAULT_CSV_HEADERS
+    headers = DEFAULT_CSV_HEADERS.copy()
 
     lines_to_write: list[str] = []
 

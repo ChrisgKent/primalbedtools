@@ -156,3 +156,9 @@ class TestScheme(unittest.TestCase):
             )
         # Check all bedlines are present
         self.assertEqual(len(scheme.bedlines), len(csv_line_list))
+
+    def test_to_csv_does_not_mutate_default_headers(self):
+        scheme = Scheme.from_file(str(TEST_ATTRIBUTES_BEDFILE))
+        original_headers = list(DEFAULT_CSV_HEADERS)
+        _csv_str = scheme.to_delim_str(include_headers=True, use_header_aliases=False)
+        self.assertEqual(DEFAULT_CSV_HEADERS, original_headers)

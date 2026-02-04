@@ -120,7 +120,6 @@ def remap(
             continue
         else:
             for i in range(msa_start, -1, -1):
-                print(i)
                 if msa_to_genome[1][i] is not None:
                     bedline.start = msa_to_genome[1][i]
                     bedline.end = min(

@@ -5,7 +5,11 @@ import typing
 from functools import total_ordering
 from typing import Optional, Union
 
-from primalbedtools.utils import expand_ambiguous_bases, rc_seq, strip_all_white_space
+from primalbedtools.utils import (
+    expand_ambiguous_bases,
+    rc_seq,
+    strip_all_white_space,
+)
 
 # Regular expressions for primer names
 V1_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT|PROBE)(_ALT[0-9]*|_alt[0-9]*)*$"
@@ -129,7 +133,12 @@ def create_primername(
     """
     Creates an unvalidated primername string.
     """
-    values = [amplicon_prefix, amplicon_number, primer_class.value, primer_suffix]
+    values = [
+        amplicon_prefix,
+        amplicon_number,
+        primer_class.value,
+        primer_suffix,
+    ]
     return "_".join([str(x) for x in values if x is not None])
 
 
@@ -288,7 +297,9 @@ def validate_primer_suffix(
         return int_v
 
 
-def validate_primer_name(primername: str) -> tuple[str, str, str, Union[str, None]]:
+def validate_primer_name(
+    primername: str,
+) -> tuple[str, str, str, Union[str, None]]:
     """
     Validates the structure of the primer Name, and returns the unvalidated components.
     (Amplicon_prefix, Amplicon_number, Primer_class, Primer_suffix)
@@ -455,6 +466,9 @@ class BedLine:
             self.primername,
         )
 
+    def __hash__(self):
+        return hash(self._sort_key())
+
     @property
     def chrom(self):
         """Return the chromosome of the primer"""
@@ -607,6 +621,8 @@ class BedLine:
             self.force_change(new_primer_class.value, new_strand)
         elif implied_strand:
             self.force_change(new_primer_class.value, implied_strand)
+        else:
+            self._primer_class = new_primer_class
 
         # Try to parse the primer_suffix
         try:
@@ -686,6 +702,8 @@ class BedLine:
         elif v is None:
             self._attributes = {}
             return
+        elif isinstance(v, (int, float)):
+            new_dict = {PRIMER_WEIGHT_KEY: v}
         else:
             raise ValueError(f"Invalid primer attributes. Got ({v})")
 
@@ -1014,7 +1032,9 @@ def group_by_chrom(list_bedlines: list[BedLine]) -> dict[str, list[BedLine]]:
     return bedlines_dict
 
 
-def group_by_amplicon_number(list_bedlines: list[BedLine]) -> dict[int, list[BedLine]]:
+def group_by_amplicon_number(
+    list_bedlines: list[BedLine],
+) -> dict[int, list[BedLine]]:
     """Groups a list of BedLine objects by amplicon number.
 
     Takes a list of BedLine objects and organizes them into a dictionary

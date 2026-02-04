@@ -1,7 +1,7 @@
 import pathlib
 import unittest
 
-from primalbedtools.amplicons import Amplicon, create_amplicons
+from primalbedtools.amplicons import Amplicon, create_amplicons, do_pp_ol
 from primalbedtools.bedfiles import BedLine, BedLineParser, group_primer_pairs
 
 TEST_BEDLINE = pathlib.Path(__file__).parent / "inputs/test.bed"
@@ -129,6 +129,19 @@ class TestAmplicon(unittest.TestCase):
         self.assertEqual(amp.left_region, (2010, 2030))
         self.assertEqual(amp.probe_region, (2035, 2060))
         self.assertEqual(amp.right_region, (2903, 2923))
+
+    def test_do_pp_ol_half_open_boundary(self):
+        # Amplicon 1: [0, 30)
+        a1_left = BedLine("chrom", 0, 10, "test_1_LEFT_1", 1, "+", "ATGC")
+        a1_right = BedLine("chrom", 20, 30, "test_1_RIGHT_1", 1, "-", "ATGC")
+        amp1 = Amplicon([a1_left], [a1_right])
+
+        # Amplicon 2 starts exactly at 30, so no overlap for half-open intervals
+        a2_left = BedLine("chrom", 30, 40, "test_2_LEFT_1", 1, "+", "ATGC")
+        a2_right = BedLine("chrom", 50, 60, "test_2_RIGHT_1", 1, "-", "ATGC")
+        amp2 = Amplicon([a2_left], [a2_right])
+
+        self.assertFalse(do_pp_ol(amp1, amp2))
 
 
 if __name__ == "__main__":

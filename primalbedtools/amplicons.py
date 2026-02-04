@@ -1,6 +1,11 @@
 from typing import Optional
 
-from primalbedtools.bedfiles import BedLine, BedLineParser, PrimerClass, group_amplicons
+from primalbedtools.bedfiles import (
+    BedLine,
+    BedLineParser,
+    PrimerClass,
+    group_amplicons,
+)
 
 
 class Amplicon:
@@ -255,7 +260,10 @@ class Amplicon:
         """
         if not self.probes:
             return None
-        return (min(p.start for p in self.probes), max(p.end for p in self.probes))
+        return (
+            min(p.start for p in self.probes),
+            max(p.end for p in self.probes),
+        )
 
     @property
     def left_region(self) -> tuple[int, int]:
@@ -264,7 +272,10 @@ class Amplicon:
         Returns:
             tuple[int, int]: Half-open interval (start, end) of LEFT primer region
         """
-        return (min(lp.start for lp in self.left), max(lp.end for lp in self.left))
+        return (
+            min(lp.start for lp in self.left),
+            max(lp.end for lp in self.left),
+        )
 
     @property
     def right_region(self) -> tuple[int, int]:
@@ -273,7 +284,10 @@ class Amplicon:
         Returns:
             tuple[int, int]: Half-open interval (start, end) of RIGHT primer region
         """
-        return (min(rp.start for rp in self.right), max(rp.end for rp in self.right))
+        return (
+            min(rp.start for rp in self.right),
+            max(rp.end for rp in self.right),
+        )
 
     def to_amplicon_str(self) -> str:
         """Convert the amplicon to a BED format string representing the full amplicon.
@@ -345,10 +359,6 @@ def do_pp_ol(pp1: Amplicon, pp2: Amplicon) -> bool:
         >>> do_pp_ol(amplicon1, amplicon2)
         True
     """
-    if range(
-        max(pp1.amplicon_start, pp2.amplicon_start),
-        min(pp1.amplicon_end, pp2.amplicon_end) + 1,
-    ):
-        return True
-    else:
-        return False
+    return max(pp1.amplicon_start, pp2.amplicon_start) < min(
+        pp1.amplicon_end, pp2.amplicon_end
+    )

@@ -78,7 +78,11 @@ class TestHeader(unittest.TestCase):
         attr_dict = parse_headers_to_dict(headers)
         self.assertDictEqual(
             attr_dict,
-            {"MN908947.3": "sars-cov-2", "examplescheme": None, "gc": "fractiongc"},
+            {
+                "MN908947.3": "sars-cov-2",
+                "examplescheme": None,
+                "gc": "fractiongc",
+            },
         )
 
     def test_parse_headers_to_dict_probe(self):
@@ -229,6 +233,24 @@ class TestBedLine(unittest.TestCase):
             sequence="ACGT",
         )
         return super().setUp()
+
+    def test_primername_setter_updates_probe_class(self):
+        self.bedline.primername = "scheme_1_PROBE_1"
+        self.assertEqual(self.bedline.primer_class, PrimerClass.PROBE)
+        self.assertEqual(self.bedline.primername, "scheme_1_PROBE_1")
+
+    def test_attributes_accept_float(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+            attributes=1.5,
+        )
+        self.assertEqual(bedline.weight, 1.5)
 
     def test_create_bedline_with_strand_diff(self):
         """
@@ -901,7 +923,8 @@ class TestBedLine(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             bedline.primer_suffix = -1
         self.assertIn(
-            "primer_suffix must be greater than or equal to 0", str(context.exception)
+            "primer_suffix must be greater than or equal to 0",
+            str(context.exception),
         )
 
         # Invalid v1 primer_suffix
@@ -969,7 +992,8 @@ class TestReadBedfile(unittest.TestCase):
     def test_read_bedfile(self):
         headers, bedlines = read_bedfile(TEST_BEDFILE)
         self.assertEqual(
-            headers, ["# artic-bed-version v3.0", "# artic-sars-cov-2 / 400 / v5.3.2"]
+            headers,
+            ["# artic-bed-version v3.0", "# artic-sars-cov-2 / 400 / v5.3.2"],
         )
 
         self.assertEqual(len(bedlines), 6)
@@ -1021,7 +1045,8 @@ class TestCreateBedfileStr(unittest.TestCase):
     def test_create_bedfile_str(self):
         bedfile_str = create_bedfile_str(["#header1"], [self.bedline])
         self.assertEqual(
-            bedfile_str, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n"
+            bedfile_str,
+            "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n",
         )
 
     def test_create_bedfile_str_no_header(self):
@@ -1031,7 +1056,8 @@ class TestCreateBedfileStr(unittest.TestCase):
     def test_create_bedfile_str_malformed_header(self):
         bedfile_str = create_bedfile_str(["header1"], [self.bedline])
         self.assertEqual(
-            bedfile_str, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n"
+            bedfile_str,
+            "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n",
         )
 
 
@@ -1061,7 +1087,8 @@ class TestWriteBedfile(unittest.TestCase):
         with open(self.output_bed_path) as f:
             content = f.read()
         self.assertEqual(
-            content, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0\n"
+            content,
+            "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\tpw=1.0\n",
         )
 
     def tearDown(self) -> None:
@@ -1295,7 +1322,8 @@ class TestBedLineParser(unittest.TestCase):
     def test_bedline_parser_from_file(self):
         headers, bedlines = BedLineParser.from_file(TEST_BEDFILE)
         self.assertEqual(
-            headers, ["# artic-bed-version v3.0", "# artic-sars-cov-2 / 400 / v5.3.2"]
+            headers,
+            ["# artic-bed-version v3.0", "# artic-sars-cov-2 / 400 / v5.3.2"],
         )
 
         self.assertEqual(len(bedlines), 6)
@@ -1306,7 +1334,8 @@ class TestBedLineParser(unittest.TestCase):
             bedfile_str = f.read()
         headers, bedlines = BedLineParser.from_str(bedfile_str)
         self.assertEqual(
-            headers, ["# artic-bed-version v3.0", "# artic-sars-cov-2 / 400 / v5.3.2"]
+            headers,
+            ["# artic-bed-version v3.0", "# artic-sars-cov-2 / 400 / v5.3.2"],
         )
 
         self.assertEqual(len(bedlines), 6)
@@ -1324,7 +1353,8 @@ class TestBedLineParser(unittest.TestCase):
         )
         bedfile_str = BedLineParser.to_str(["#header1"], [bedline])
         self.assertEqual(
-            bedfile_str, "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n"
+            bedfile_str,
+            "#header1\nchr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n",
         )
 
     def test_bedline_parser_to_file(self):
