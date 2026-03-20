@@ -12,6 +12,7 @@ Repository = "https://github.com/ChrisgKent/primalbedtools"
 
 [project.scripts]
 primalbedtools = "primalbedtools.main:main"
+pbt = "primalbedtools.main:main"
 
 [dependency-groups]
 dev = [
