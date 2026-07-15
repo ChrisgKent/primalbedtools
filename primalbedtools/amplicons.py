@@ -8,6 +8,25 @@ from primalbedtools.bedfiles import (
 )
 
 
+def _group_by_value(bedlines: list[BedLine], attr: str, label: str) -> str:
+    """Render bedline primernames grouped by the value of ``attr``, one line per value.
+
+    Produces a human-readable summary such as::
+
+        pool 1: scheme_1_LEFT_1, scheme_1_RIGHT_1
+        pool 2: scheme_1_LEFT_2
+
+    so error messages can name exactly which primers diverge.
+    """
+    groups: dict = {}
+    for bl in bedlines:
+        groups.setdefault(getattr(bl, attr), []).append(bl.primername)
+    return "\n".join(
+        f"  {label} {value}: {', '.join(sorted(names))}"
+        for value, names in sorted(groups.items(), key=lambda kv: str(kv[0]))
+    )
+
+
 class Amplicon:
     """A class representing a PCR amplicon with forward and reverse primers, and optional probes.
 
@@ -84,7 +103,8 @@ class Amplicon:
 
         if len(prefixes) != 1:
             print(
-                f"All bedlines must have the same prefix ({','.join(prefixes)}). Using the alphanumerically first one ({prefixes[0]})."
+                f"All bedlines must have the same prefix ({','.join(prefixes)}). Using the alphanumerically first one ({prefixes[0]}).\n"
+                + _group_by_value(all_lines, "amplicon_prefix", "prefix")
             )
         self.prefix = prefixes[0]
 
@@ -92,7 +112,9 @@ class Amplicon:
         chroms = set([bedline.chrom for bedline in all_lines])
         if len(chroms) != 1:
             raise ValueError(
-                f"Failed to create amplicon as provided bedlines are on different chromosomes ({','.join(map(str, chroms))}):\n\n"
+                "Failed to create amplicon as provided bedlines are on different chromosomes:\n"
+                + _group_by_value(all_lines, "chrom", "chrom")
+                + "\n\n"
                 + BedLineParser.to_str(bedlines=all_lines, headers=None)
             )
         self.chrom = chroms.pop()
@@ -101,7 +123,9 @@ class Amplicon:
         amplicon_numbers = set([bedline.amplicon_number for bedline in all_lines])
         if len(amplicon_numbers) != 1:
             raise ValueError(
-                f"Failed to create amplicon as provided bedlines have different amplicon numbers ({','.join(map(str, amplicon_numbers))}):\n\n"
+                "Failed to create amplicon as provided bedlines have different amplicon numbers:\n"
+                + _group_by_value(all_lines, "amplicon_number", "amplicon")
+                + "\n\n"
                 + BedLineParser.to_str(bedlines=all_lines, headers=None)
             )
         self.amplicon_number = amplicon_numbers.pop()
@@ -110,20 +134,26 @@ class Amplicon:
         pools = set([bedline.pool for bedline in all_lines])
         if len(pools) != 1:
             raise ValueError(
-                f"Failed to create amplicon ({self.prefix}_{self.amplicon_number}) as provided bedlines have different pools ({','.join(map(str, pools))}):\n\n"
+                f"Failed to create amplicon ({self.prefix}_{self.amplicon_number}) as provided bedlines have different pools:\n"
+                + _group_by_value(all_lines, "pool", "pool")
+                + "\n\n"
                 + BedLineParser.to_str(bedlines=all_lines, headers=None)
             )
         self.pool = pools.pop()
 
         # Check both forward and reverse primers are present
         if not self.left:
+            present = ", ".join(sorted(bl.primername for bl in self.right)) or "none"
             raise ValueError(
-                f"Failed to create amplicon ({self.prefix}_{self.amplicon_number}) as no forward primers found:\n\n"
+                f"Failed to create amplicon ({self.prefix}_{self.amplicon_number}) as no forward primers found. "
+                f"Reverse primers present: {present}\n\n"
                 + BedLineParser.to_str(bedlines=all_lines, headers=None)
             )
         if not self.right:
+            present = ", ".join(sorted(bl.primername for bl in self.left)) or "none"
             raise ValueError(
-                f"Failed to create amplicon ({self.prefix}_{self.amplicon_number}) as no reverse primers found:\n\n"
+                f"Failed to create amplicon ({self.prefix}_{self.amplicon_number}) as no reverse primers found. "
+                f"Forward primers present: {present}\n\n"
                 + BedLineParser.to_str(bedlines=all_lines, headers=None)
             )
 

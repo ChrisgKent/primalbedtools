@@ -1,3 +1,5 @@
+import contextlib
+import io
 import pathlib
 import unittest
 
@@ -42,38 +44,66 @@ class TestAmplicon(unittest.TestCase):
         fbedline = BedLine("a", 100, 120, "test_1_LEFT_1", 1, "+", "ATGC")
         rbedline = BedLine("chrom", 200, 220, "test_1_RIGHT_1", 1, "-", "ATGC")
 
-        # Test error when chromname are different
-        with self.assertRaises(ValueError):
+        # Test error when chromname are different, and that the offending
+        # primers are named per-chromosome in the message.
+        with self.assertRaisesRegex(ValueError, r"chrom a: test_1_LEFT_1"):
+            Amplicon([fbedline], [rbedline])
+        with self.assertRaisesRegex(ValueError, r"chrom chrom: test_1_RIGHT_1"):
             Amplicon([fbedline], [rbedline])
 
     def test_primer_pair_creation_error_pool(self):
         fbedline = BedLine("chrom", 100, 120, "test_1_LEFT_1", 1, "+", "ATGC")
         rbedline = BedLine("chrom", 200, 220, "test_1_RIGHT_1", 2, "-", "ATGC")
 
-        # Test error when pool are different
-        with self.assertRaises(ValueError):
+        # Test error when pool are different, and that each pool's members
+        # are named on their own line.
+        with self.assertRaisesRegex(ValueError, r"pool 1: test_1_LEFT_1"):
+            Amplicon([fbedline], [rbedline])
+        with self.assertRaisesRegex(ValueError, r"pool 2: test_1_RIGHT_1"):
             Amplicon([fbedline], [rbedline])
 
     def test_primer_pair_creation_error_amplicon_number(self):
         fbedline = BedLine("chrom", 100, 120, "test_1_LEFT_1", 1, "+", "ATGC")
         rbedline = BedLine("chrom", 200, 220, "test_2_RIGHT_1", 1, "-", "ATGC")
 
-        # Test error when amplicon numbers are different
-        with self.assertRaises(ValueError):
+        # Test error when amplicon numbers are different, and offenders are named.
+        with self.assertRaisesRegex(ValueError, r"amplicon 1: test_1_LEFT_1"):
             Amplicon([fbedline], [rbedline])
+        with self.assertRaisesRegex(ValueError, r"amplicon 2: test_2_RIGHT_1"):
+            Amplicon([fbedline], [rbedline])
+
+    def test_primer_pair_creation_warning_different_prefix(self):
+        # Different prefixes only warn (they don't raise); the warning should
+        # name which primers carry each prefix.
+        fbedline = BedLine("chrom", 100, 120, "aScheme_1_LEFT_1", 1, "+", "ATGC")
+        rbedline = BedLine("chrom", 200, 220, "bScheme_1_RIGHT_1", 1, "-", "ATGC")
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            Amplicon([fbedline], [rbedline])
+        output = buf.getvalue()
+
+        self.assertIn("prefix aScheme: aScheme_1_LEFT_1", output)
+        self.assertIn("prefix bScheme: bScheme_1_RIGHT_1", output)
 
     def test_primer_pair_creation_error_no_forward_primers(self):
         rbedline = BedLine("chrom", 200, 220, "test_1_RIGHT_1", 1, "-", "ATGC")
 
-        # Test error when no forward primers are present
-        with self.assertRaises(ValueError):
+        # Test error when no forward primers are present; the present reverse
+        # primer should be named.
+        with self.assertRaisesRegex(
+            ValueError, r"Reverse primers present: test_1_RIGHT_1"
+        ):
             Amplicon([], [rbedline])
 
     def test_primer_pair_creation_error_no_reverse_primers(self):
         fbedline = BedLine("chrom", 100, 120, "test_1_LEFT_1", 1, "+", "ATGC")
 
-        # Test error when no reverse primers are present
-        with self.assertRaises(ValueError):
+        # Test error when no reverse primers are present; the present forward
+        # primer should be named.
+        with self.assertRaisesRegex(
+            ValueError, r"Forward primers present: test_1_LEFT_1"
+        ):
             Amplicon([fbedline], [])
 
     def test_create_Amplicons(self):
