@@ -71,7 +71,7 @@ class Scheme:
 
     # io
     @classmethod
-    def from_str(cls, str: str):
+    def from_str(cls, str: str) -> "Scheme":
         """Create a Scheme from a bed file string.
 
         Args:
@@ -84,7 +84,7 @@ class Scheme:
         return cls(headers, bedlines)
 
     @classmethod
-    def from_file(cls, file: str):
+    def from_file(cls, file: str) -> "Scheme":
         """Create a Scheme from a bed file on disk.
 
         Args:
@@ -97,7 +97,7 @@ class Scheme:
         return cls(headers, bedlines)
 
     @classmethod
-    def from_delim_str(cls, text: str, delimiter: str = ","):
+    def from_delim_str(cls, text: str, delimiter: str = ",") -> "Scheme":
         """Create a Scheme from a delimited string written by to_delim_str.
 
         Args:
@@ -110,7 +110,7 @@ class Scheme:
         return from_delim_str(text, delimiter=delimiter)
 
     @classmethod
-    def from_delim_file(cls, file: str, delimiter: str = ","):
+    def from_delim_file(cls, file: str, delimiter: str = ",") -> "Scheme":
         """Create a Scheme from a delimited file on disk.
 
         Unlike from_file, this takes a path only. Stdin is reserved for bed
@@ -199,49 +199,57 @@ def to_delim_str(
     scheme: Scheme,
     include_headers: bool = True,
     use_header_aliases: bool = False,
+    delimiter: str = ",",
 ) -> str:
     """
     Turns a bedfile into a full expanded delim separated file
+
+    Raises:
+        ValueError: If a primer attribute is keyed with the name of a fixed
+            column, which the delimited format cannot represent.
     """
-    # Define the default headers
-    headers = DEFAULT_CSV_HEADERS.copy()
-
-    lines_to_write: list[str] = []
-
     header_aliases = scheme.header_dict
     aliases_to_attr = {v: k for k, v in header_aliases.items()}
 
-    # Parse the attr strings add new headers
+    # Collect the attribute columns, in first-seen order
+    attribute_headers: list[str] = []
     for bl in scheme.bedlines:
         for k in bl.attributes.keys():
             if use_header_aliases:
                 k = header_aliases.get(k, k)
-            if k not in headers:
-                headers.append(k)
+            if k in DEFAULT_CSV_HEADERS:
+                raise ValueError(
+                    f"Attribute ({k}) collides with the fixed column of the same "
+                    "name and cannot be written to a delimited file. Rename the "
+                    "attribute."
+                )
+            if k not in attribute_headers:
+                attribute_headers.append(k)
 
-    # Create a csv line for each bedline
+    headers = DEFAULT_CSV_HEADERS + attribute_headers
+
+    buffer = io.StringIO()
+    # csv.writer quotes only the values that need it, so plain output is
+    # unchanged, and defaults to CRLF which would alter every line
+    writer = csv.writer(buffer, delimiter=delimiter, lineterminator="\n")
+
     if include_headers:
-        lines_to_write.append(",".join(headers))
+        writer.writerow(headers)
 
     for bl in scheme.bedlines:
-        bl_csv: list[str] = []
-        for h in headers:
-            r = None
-            try:
-                r = bl.__getattribute__(h)
-            except AttributeError:
-                # Search _attribute dict
-                if h in bl.attributes:
-                    r = bl.attributes[h]
-                elif h in aliases_to_attr:
-                    r = bl.attributes.get(aliases_to_attr[h])
+        # Fixed columns come from the BedLine itself, attribute columns from the
+        # attributes dict. Resolving both through getattr would let an attribute
+        # keyed like a BedLine property (weight, length, ...) read the property
+        # instead, silently dropping or corrupting the stored value.
+        row = [getattr(bl, h) for h in DEFAULT_CSV_HEADERS]
+        for h in attribute_headers:
+            key = aliases_to_attr.get(h, h) if use_header_aliases else h
+            row.append(bl.attributes.get(key))
 
-            bl_csv.append(str(r) if r is not None else "")
+        writer.writerow(["" if v is None else str(v) for v in row])
 
-        lines_to_write.append(",".join(bl_csv))
-
-    # write all complete lines
-    return "\n".join(lines_to_write)
+    # Rows are joined by, not terminated with, a newline
+    return buffer.getvalue().rstrip("\n")
 
 
 def _check_derived_columns(bedline: BedLine, values: dict, line_number: int) -> None:
@@ -302,6 +310,14 @@ def from_delim_str(text: str, delimiter: str = ",") -> Scheme:
         raise ValueError("No rows found in the delimited file")
 
     csv_headers = [h.strip() for h in rows[0]]
+
+    # Duplicates would silently resolve to whichever column came last
+    duplicates = sorted({h for h in csv_headers if csv_headers.count(h) > 1})
+    if duplicates:
+        raise ValueError(
+            f"Duplicate column name(s): {', '.join(duplicates)}. "
+            "Each column must be named once."
+        )
 
     missing = [h for h in REQUIRED_CSV_HEADERS if h not in csv_headers]
     if missing:
