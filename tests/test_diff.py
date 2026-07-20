@@ -121,6 +121,32 @@ class TestNDiff(unittest.TestCase):
         )
         self.assertEqual(diffs, [])
 
+    def test_ignore_attr_order(self):
+        """
+        With ignore_attr_order flag true, attribute ordering differences are ignored.
+        """
+        self.scheme1.bedlines[0].attributes = {"a": 1, "b": 2}
+        self.scheme2.bedlines[0].attributes = {"b": 2, "a": 1}
+
+        diffs = list(
+            ndiff_bedlines(
+                self.scheme1.bedlines,
+                self.scheme2.bedlines,
+                ignore_no_diff=True,
+            )
+        )
+        self.assertNotEqual(diffs, [])
+
+        diffs = list(
+            ndiff_bedlines(
+                self.scheme1.bedlines,
+                self.scheme2.bedlines,
+                ignore_attr_order=True,
+                ignore_no_diff=True,
+            )
+        )
+        self.assertEqual(diffs, [])
+
     def test_content_change(self):
         """
         Test that changes in content (e.g. start position) are detected.
@@ -216,6 +242,41 @@ class TestNDiff(unittest.TestCase):
         )
         self.assertEqual(diffs, [])
 
+    def test_ignore_primer_prefix_does_not_touch_sequence(self):
+        """
+        Ensure prefix replacement only touches the primername field.
+        """
+        from primalbedtools.bedfiles import BedLine
+
+        bl1 = BedLine(
+            chrom="chr1",
+            start=0,
+            end=4,
+            primername="A_1_LEFT_1",
+            pool=1,
+            strand="+",
+            sequence="ABAB",
+        )
+        bl2 = BedLine(
+            chrom="chr1",
+            start=0,
+            end=4,
+            primername="B_1_LEFT_1",
+            pool=1,
+            strand="+",
+            sequence="ABAB",
+        )
+
+        diffs = list(
+            ndiff_bedlines(
+                [bl1],
+                [bl2],
+                ignore_primer_prefix=True,
+                ignore_no_diff=True,
+            )
+        )
+        self.assertEqual(diffs, [])
+
 
 class TestUnifiedDiff(unittest.TestCase):
     def setUp(self) -> None:
@@ -301,6 +362,27 @@ class TestUnifiedDiff(unittest.TestCase):
                 self.scheme1.bedlines,
                 self.scheme2.bedlines,
                 ignore_attr=True,
+            )
+        )
+        self.assertEqual(diffs, [])
+
+    def test_ignore_attr_order(self):
+        self.scheme1.bedlines[0].attributes = {"a": 1, "b": 2}
+        self.scheme2.bedlines[0].attributes = {"b": 2, "a": 1}
+
+        diffs = list(
+            unified_diff_bedlines(
+                self.scheme1.bedlines,
+                self.scheme2.bedlines,
+            )
+        )
+        self.assertNotEqual(diffs, [])
+
+        diffs = list(
+            unified_diff_bedlines(
+                self.scheme1.bedlines,
+                self.scheme2.bedlines,
+                ignore_attr_order=True,
             )
         )
         self.assertEqual(diffs, [])

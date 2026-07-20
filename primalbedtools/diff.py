@@ -1,9 +1,41 @@
 from difflib import ndiff, unified_diff
 from typing import Optional
 
-from primalbedtools.bedfiles import BedLine, BedLineParser
+from primalbedtools.bedfiles import BedLine, create_primername
 
 PLACEHOLDER_STR = "<placeholder>"
+
+
+def _bedlines_to_str(
+    bedlines: list[BedLine],
+    headers: Optional[list[str]],
+    ignore_attr: bool,
+    ignore_primer_prefix: bool,
+    ignore_attr_order: bool,
+) -> str:
+    bedfile_str: list[str] = []
+    if headers:
+        for header in headers:
+            if not header.startswith("#"):
+                header = "#" + header
+            bedfile_str.append(header + "\n")
+
+    for bedline in bedlines:
+        line = bedline.to_bed(ignore_attr=ignore_attr, sort_attr=ignore_attr_order)
+        # Explicitly override primer-prefix
+        if ignore_primer_prefix:
+            placeholder_name = create_primername(
+                PLACEHOLDER_STR,
+                bedline.amplicon_number,
+                bedline.primer_class,
+                bedline.primer_suffix,
+            )
+            fields = line.rstrip("\n").split("\t")
+            fields[3] = placeholder_name
+            line = "\t".join(fields) + "\n"
+        bedfile_str.append(line)
+
+    return "".join(bedfile_str)
 
 
 def create_normalised_bedfile_str(
@@ -15,6 +47,7 @@ def create_normalised_bedfile_str(
     ignore_attr: bool = False,
     ignore_header: bool = False,
     ignore_primer_prefix: bool = False,
+    ignore_attr_order: bool = False,
 ) -> tuple[str, str]:
     """Creates normalised bedfile strings formatted for diff comparison.
 
@@ -30,6 +63,7 @@ def create_normalised_bedfile_str(
         ignore_attr (bool, optional): If True, excludes attributes from the string representation. Defaults to False.
         ignore_header (bool, optional): If True, excludes headers from the string representation. Defaults to False.
         ignore_primer_prefix (bool, optional): If True, excludes the primername prefix from the string representation. Defaults to False.
+        ignore_attr_order (bool, optional): If True, normalizes attribute key ordering before comparison. Defaults to False.
 
 
     Returns:
@@ -40,21 +74,23 @@ def create_normalised_bedfile_str(
         header2 = None
 
     if ignore_order:
-        bed_str1 = BedLineParser.to_str(header1, sorted(bedlines1), ignore_attr)
-        bed_str2 = BedLineParser.to_str(header2, sorted(bedlines2), ignore_attr)
-    else:
-        bed_str1 = BedLineParser.to_str(header1, bedlines1, ignore_attr)
-        bed_str2 = BedLineParser.to_str(header2, bedlines2, ignore_attr)
+        bedlines1 = sorted(bedlines1)
+        bedlines2 = sorted(bedlines2)
 
-    # Find replace the prefix
-    if ignore_primer_prefix:
-        bl1_pn_prefixs = {bl.amplicon_prefix for bl in bedlines1}
-        for bl1_pn_prefix in bl1_pn_prefixs:
-            bed_str1 = bed_str1.replace(bl1_pn_prefix, PLACEHOLDER_STR)
-
-        bl2_pn_prefixs = {bl.amplicon_prefix for bl in bedlines2}
-        for bl2_pn_prefix in bl2_pn_prefixs:
-            bed_str2 = bed_str2.replace(bl2_pn_prefix, PLACEHOLDER_STR)
+    bed_str1 = _bedlines_to_str(
+        bedlines1,
+        header1,
+        ignore_attr=ignore_attr,
+        ignore_primer_prefix=ignore_primer_prefix,
+        ignore_attr_order=ignore_attr_order,
+    )
+    bed_str2 = _bedlines_to_str(
+        bedlines2,
+        header2,
+        ignore_attr=ignore_attr,
+        ignore_primer_prefix=ignore_primer_prefix,
+        ignore_attr_order=ignore_attr_order,
+    )
 
     return (bed_str1, bed_str2)
 
@@ -117,6 +153,7 @@ def ndiff_bedlines(
     ignore_header: bool = False,
     ignore_no_diff: bool = False,
     ignore_primer_prefix: bool = False,
+    ignore_attr_order: bool = False,
 ):
     """Generates a difference report between two sets of bedlines using difflib.ndiff.
 
@@ -133,6 +170,7 @@ def ndiff_bedlines(
         ignore_header (bool, optional): If True, excludes headers from comparison. Defaults to False.
         ignore_no_diff (bool, optional): If True, filters out lines that are identical (starting with "  "). Defaults to False.
         ignore_primer_prefix (bool, optional): If True, excludes the primername prefix from the string representation. Defaults to False.
+        ignore_attr_order (bool, optional): If True, normalizes attribute key ordering before comparison. Defaults to False.
 
     Returns:
         Iterator[str]: A generator yielding difference lines (strings).
@@ -146,6 +184,7 @@ def ndiff_bedlines(
         ignore_order=ignore_order,
         ignore_header=ignore_header,
         ignore_primer_prefix=ignore_primer_prefix,
+        ignore_attr_order=ignore_attr_order,
     )
 
     diff_generator = ndiff(
@@ -166,6 +205,7 @@ def unified_diff_bedlines(
     ignore_attr: bool = False,
     ignore_header: bool = False,
     ignore_primer_prefix: bool = False,
+    ignore_attr_order: bool = False,
 ):
     """Generates a unified difference report between two sets of bedlines.
 
@@ -181,6 +221,7 @@ def unified_diff_bedlines(
         ignore_attr (bool, optional): If True, excludes attributes from comparison. Defaults to False.
         ignore_header (bool, optional): If True, excludes headers from comparison. Defaults to False.
         ignore_primer_prefix (bool, optional): If True, excludes the primername prefix from the string representation. Defaults to False.
+        ignore_attr_order (bool, optional): If True, normalizes attribute key ordering before comparison. Defaults to False.
 
     Returns:
         Iterator[str]: A generator yielding unified diff lines (strings).
@@ -196,6 +237,7 @@ def unified_diff_bedlines(
         ignore_order=ignore_order,
         ignore_header=ignore_header,
         ignore_primer_prefix=ignore_primer_prefix,
+        ignore_attr_order=ignore_attr_order,
     )
 
     return unified_diff(
