@@ -722,6 +722,18 @@ class BedLine:
             for k, v in new_dict.items()
         }
 
+        # ';' and '=' separate the attribute string, so a key or value
+        # containing either would write a bedline that cannot be read back
+        for k, v in parsed_dict.items():
+            for field, text in (("key", k), ("value", v)):
+                bad = [c for c in (";", "=") if c in str(text)]
+                if not bad:
+                    continue
+                where = f"key ({k})" if field == "key" else f"value ({v}) for key ({k})"
+                raise ValueError(
+                    f"Invalid attribute {where}. Must not contain ({', '.join(bad)})"
+                )
+
         self._attributes = parsed_dict
 
         # Call to primer weight setter to validate
