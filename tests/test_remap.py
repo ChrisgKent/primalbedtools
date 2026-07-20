@@ -213,8 +213,11 @@ class Testremap(unittest.TestCase):
         )
         msa = read_fasta(fasta_io)
 
-        # Remaps
-        remap("chr1", "chr2", [fbedline], msa)
+        # Remaps. The advisory is logged rather than printed, so it cannot
+        # corrupt the BED the CLI writes to stdout.
+        with self.assertLogs("primalbedtools.remap", level="WARNING") as cm:
+            remap("chr1", "chr2", [fbedline], msa)
+        self.assertIn("test_1_LEFT_1 not found in new reference", "\n".join(cm.output))
 
         # Check nothing changes
         self.assertEqual(fbedline.start, 10)

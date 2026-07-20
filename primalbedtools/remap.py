@@ -1,6 +1,9 @@
 from typing import Union
 
 from primalbedtools.bedfiles import BedLine
+from primalbedtools.logs import get_logger
+
+logger = get_logger(__name__)
 
 
 def create_mapping_list(
@@ -83,7 +86,7 @@ def remap(
 
         # Check for primer not in the new reference
         if all(x is None for x in msa_to_genome[1][msa_start:msa_end]):
-            print(f"{bedline.primername} not found in new reference")
+            logger.warning(f"{bedline.primername} not found in new reference")
             # revert to original
             continue
 
@@ -105,7 +108,7 @@ def remap(
             bedline.chrom = to_id
             continue
         else:
-            print(f"{bedline.primername} 3' gap found in new reference")
+            logger.warning(f"{bedline.primername} 3' gap found in new reference")
 
         # Handle 3' gaps
         # At this point at least one base is 'mapped'
