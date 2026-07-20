@@ -1,6 +1,7 @@
 import enum
 import pathlib
 import re
+import sys
 import typing
 from functools import total_ordering
 from typing import Optional, Union
@@ -982,6 +983,10 @@ def bedline_from_str(bedline_str: str) -> tuple[list[str], list[BedLine]]:
 def read_bedfile(
     bedfile: typing.Union[str, pathlib.Path],
 ) -> tuple[list[str], list[BedLine]]:
+    """Read a bed file from disk, or from stdin when given "-"."""
+    if str(bedfile) == "-":
+        return bedline_from_str(sys.stdin.read())
+
     with open(bedfile) as f:
         text = f.read()
         return bedline_from_str(text)
