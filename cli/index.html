@@ -292,6 +292,24 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reading-from-stdin" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reading from stdin
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Global options
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#commands" class="md-nav__link">
     <span class="md-ellipsis">
       Commands
@@ -377,6 +395,24 @@
   <a href="#downgrade" class="md-nav__link">
     <span class="md-ellipsis">
       downgrade
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      csv
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#from-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      from-csv
     </span>
   </a>
   
@@ -462,6 +498,24 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reading-from-stdin" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reading from stdin
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Global options
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#commands" class="md-nav__link">
     <span class="md-ellipsis">
       Commands
@@ -552,6 +606,24 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      csv
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#from-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      from-csv
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -587,6 +659,29 @@
 </code></pre>
 <h2 id="basic-usage">Basic Usage</h2>
 <pre><code class="language-bash">primalbedtools &lt;command&gt; [options]
+</code></pre>
+<h2 id="reading-from-stdin">Reading from stdin</h2>
+<p>Pass <code>-</code> in place of a BED file path to read from stdin, which lets commands be
+chained:</p>
+<pre><code class="language-bash">cat primers.bed | primalbedtools sort - | primalbedtools amplicon -
+primalbedtools update primers.bed | primalbedtools validate - reference.fasta
+</code></pre>
+<p>The <code>diff</code> command is the exception; it takes two BED files and requires both as
+paths.</p>
+<h2 id="global-options">Global options</h2>
+<p>These apply to every command and must be given <strong>before</strong> the command name.</p>
+<ul>
+<li><code>-v</code>, <code>--verbose</code>: Enable debug-level logging</li>
+<li><code>-q</code>, <code>--quiet</code>: Suppress warnings, leaving only errors</li>
+</ul>
+<pre><code class="language-bash">primalbedtools -v amplicon primers.bed   # correct
+primalbedtools amplicon -v primers.bed   # error
+</code></pre>
+<p>Warnings and other advisory messages are written to stderr, so redirecting
+stdout captures only the data:</p>
+<pre><code class="language-bash">primalbedtools amplicon primers.bed &gt; amplicons.bed   # warnings still shown
+primalbedtools amplicon primers.bed &gt; amplicons.bed 2&gt;/dev/null   # silenced
+primalbedtools amplicon primers.bed &gt; amplicons.bed 2&gt;&amp;1   # folded into the file
 </code></pre>
 <h2 id="commands">Commands</h2>
 <h3 id="remap">remap</h3>
@@ -638,6 +733,15 @@
 <pre><code class="language-bash">primalbedtools amplicon primers.bed &gt; amplicons.txt
 primalbedtools amplicon primers.bed --primertrim &gt; trimmed_amplicons.txt
 </code></pre>
+<p><strong>Mixed prefixes:</strong> primers belonging to one amplicon normally share a prefix.
+Where they don't, the amplicon is named using every prefix joined with <code>-</code>, so
+the mismatch stays visible in the output rather than being silently resolved to
+one of them:</p>
+<pre><code>SARS-CoV-2-F_1_LEFT_1
+SARS-CoV-2-R_1_RIGHT_1   -&gt;   SARS-CoV-2-F-SARS-CoV-2-R_1
+</code></pre>
+<p>A single warning summarising every affected amplicon is written to stderr. Use
+<code>-v</code> to list them individually, or <code>-q</code> to suppress it.</p>
 <h3 id="merge">merge</h3>
 <p>Merge primers with the same properties (chromosome, amplicon number, direction).</p>
 <pre><code class="language-bash">primalbedtools merge &lt;bed_file&gt;
@@ -699,6 +803,50 @@ primalbedtools downgrade primers.v2.bed &gt; primers.v1.bed
 # Downgrade without alternative primers
 primalbedtools downgrade primers.v2.bed --merge-alts &gt; primers.v1.merged.bed
 </code></pre>
+<h3 id="csv">csv</h3>
+<p>Expand a BED file into a CSV, with one column per primer attribute.</p>
+<pre><code class="language-bash">primalbedtools csv &lt;bed_file&gt; [--no-headers] [--use-header-aliases]
+</code></pre>
+<p><strong>Arguments:</strong></p>
+<ul>
+<li><code>bed</code>: Input BED file, or <code>-</code> for stdin</li>
+<li><code>--no-headers</code>: Omit the column header row</li>
+<li><code>--use-header-aliases</code>: Rename attribute columns using the bed's <code># key=alias</code> headers</li>
+</ul>
+<h3 id="from-csv">from-csv</h3>
+<p>Convert a CSV produced by <code>csv</code> back into a BED file. Each column outside the
+fixed schema becomes a primer attribute, with the column name used as the
+attribute key:</p>
+<pre><code>pw,gc            -&gt;   pw=1.4;gc=0.35
+1.4,0.35
+</code></pre>
+<pre><code class="language-bash">primalbedtools from-csv &lt;csv_file&gt;
+</code></pre>
+<p><strong>Arguments:</strong></p>
+<ul>
+<li><code>csv</code>: Input CSV file</li>
+</ul>
+<p><strong>Example:</strong></p>
+<pre><code class="language-bash">primalbedtools csv primers.bed &gt; primers.csv
+# edit primers.csv in a spreadsheet
+primalbedtools from-csv primers.csv &gt; edited.bed
+</code></pre>
+<p><strong>Round tripping.</strong> <code>csv</code> followed by <code>from-csv</code> reproduces the primer lines
+exactly, with three caveats:</p>
+<ul>
+<li><strong>Bed <code>#</code> headers are dropped.</strong> The CSV has nowhere to carry them, so the
+  output has no headers.</li>
+<li><strong>Attribute column names are taken literally.</strong> A CSV written with
+  <code>--use-header-aliases</code> yields the aliased names as attribute keys, so <code>gc</code>
+  aliased to <code>fractiongc</code> comes back as <code>fractiongc</code>. Export without the flag if
+  you intend to convert back.</li>
+<li><strong><code>--no-headers</code> output cannot be converted back</strong>, since the column names are
+  what name the attributes.</li>
+</ul>
+<p>Empty cells mean the attribute is absent from that primer rather than set to an
+empty value. <code>amplicon_prefix</code>, <code>amplicon_number</code>, <code>primer_class_str</code> and
+<code>primer_suffix</code> are derived from <code>primername</code>; if they disagree with it the file
+is rejected, naming the offending line.</p>
 
 
 

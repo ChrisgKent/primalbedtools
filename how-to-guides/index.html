@@ -363,6 +363,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#adding-primer-weights" class="md-nav__link">
+    <span class="md-ellipsis">
+      Adding primer weights
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -558,6 +567,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#adding-primer-weights" class="md-nav__link">
+    <span class="md-ellipsis">
+      Adding primer weights
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -657,7 +675,7 @@ ValueError: Invalid amplicon_prefix: (test_invalid). Must be alphanumeric or hyp
 <h2 id="common-operations">Common Operations</h2>
 <h3 id="converting-between-versions">Converting between versions</h3>
 <p>During development of primer.bed files multiple versions have been used. </p>
-<p>The current version (<strong>v3</strong>) uses a primername in the form of <code>{amplicon_prefix}_{amplicon_number}_{strand}_{primer_number}</code> (eg <code>SARS-CoV-2_1_RIGHT_1</code>). </p>
+<p>The current version (v2) uses a primername in the form of <code>{amplicon_prefix}_{amplicon_number}_{strand}_{primer_number}</code> (eg <code>SARS-CoV-2_1_RIGHT_1</code>). </p>
 <p>The old form typically used <code>{amplicon_prefix}_{amplicon_number}</code> or <code>{amplicon_prefix}_{amplicon_number}_alt1</code> (eg <code>SARS-CoV-2_1_RIGHT</code> | <code>SARS-CoV-2_1_RIGHT_alt</code>) to represent multiple primers for a site. </p>
 <p>Therefore being able to convert between the two is useful as certain tool product / expect different versions. </p>
 <h4 id="updating">Updating</h4>
@@ -862,6 +880,112 @@ MN908947.3      707     732     example_2_RIGHT_1       2       -       TCTTCATA
 <p>Using <code>use_header_aliases=True</code> means that <code>gc</code> has been parsed into <code>fractiongc</code> due to the <code># gc=fractiongc</code> comment line</p>
 </li>
 </ul>
+<h3 id="adding-primer-weights">Adding primer weights</h3>
+<p>Primer weights are stored as the <code>pw</code> attribute, and adding them by hand to every line of a bed file is tedious. A CSV can be exported, edited in Excel (or any spreadsheet), and converted back.</p>
+<div class="admonition note">
+<p class="admonition-title">A bare number in column 8 is the legacy weight format, and is parsed into <code>pw</code> automatically. Older weighted bed files therefore need no conversion.</p>
+</div>
+<p>The flow is three steps:</p>
+<pre><code class="language-bash">primalbedtools csv primers.bed &gt; primers.csv
+# add a pw column in Excel, one value per row
+primalbedtools from-csv primers.csv &gt; weighted.bed
+</code></pre>
+<p>Starting with a bed file that has no attributes:</p>
+<pre><code># artic-bed-version v3.0
+# artic-sars-cov-2 / 400 / v5.3.2
+MN908947.3  47  78  SARS-CoV-2_1_LEFT_1 1   +   CTCTTGTAGATCTGTTCTCTAAACGAACTTT
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT_1    1   -   AAAACGCCTTTTTCAACTTCTACTAAGC
+MN908947.3  344 366 SARS-CoV-2_2_LEFT_0 2   +   TCGTACGTGGCTTTGGAGACTC
+...
+</code></pre>
+<p><code>primalbedtools csv primers.bed</code> produces a table with no attribute columns. Add a <code>pw</code> column on the end and fill it in:</p>
+<table>
+<thead>
+<tr>
+<th>chrom</th>
+<th>start</th>
+<th>end</th>
+<th>primername</th>
+<th>pool</th>
+<th>strand</th>
+<th>sequence</th>
+<th>amplicon_prefix</th>
+<th>amplicon_number</th>
+<th>primer_class_str</th>
+<th>primer_suffix</th>
+<th>pw</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MN908947.3</td>
+<td>47</td>
+<td>78</td>
+<td>SARS-CoV-2_1_LEFT_1</td>
+<td>1</td>
+<td>+</td>
+<td>CTCTTGTAGATCTGTTCTCTAAACGAACTTT</td>
+<td>SARS-CoV-2</td>
+<td>1</td>
+<td>LEFT</td>
+<td>1</td>
+<td>1.4</td>
+</tr>
+<tr>
+<td>MN908947.3</td>
+<td>419</td>
+<td>447</td>
+<td>SARS-CoV-2_1_RIGHT_1</td>
+<td>1</td>
+<td>-</td>
+<td>AAAACGCCTTTTTCAACTTCTACTAAGC</td>
+<td>SARS-CoV-2</td>
+<td>1</td>
+<td>RIGHT</td>
+<td>1</td>
+<td>1.4</td>
+</tr>
+<tr>
+<td>MN908947.3</td>
+<td>344</td>
+<td>366</td>
+<td>SARS-CoV-2_2_LEFT_0</td>
+<td>2</td>
+<td>+</td>
+<td>TCGTACGTGGCTTTGGAGACTC</td>
+<td>SARS-CoV-2</td>
+<td>2</td>
+<td>LEFT</td>
+<td>0</td>
+<td>1.0</td>
+</tr>
+</tbody>
+</table>
+<p>The column name becomes the attribute key, so <code>pw</code> produces <code>pw=1.4</code>. Running <code>primalbedtools from-csv primers.csv</code> gives:</p>
+<pre><code>MN908947.3  47  78  SARS-CoV-2_1_LEFT_1 1   +   CTCTTGTAGATCTGTTCTCTAAACGAACTTT pw=1.4
+MN908947.3  419 447 SARS-CoV-2_1_RIGHT_1    1   -   AAAACGCCTTTTTCAACTTCTACTAAGC    pw=1.4
+MN908947.3  344 366 SARS-CoV-2_2_LEFT_0 2   +   TCGTACGTGGCTTTGGAGACTC  pw=1.0
+...
+</code></pre>
+<p>Any other column added the same way becomes its own attribute, so <code>gc</code> alongside <code>pw</code> yields <code>pw=1.4;gc=0.35</code>. Leaving a cell empty means that primer has no weight, rather than a weight of <code>0</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">The <code>#</code> header lines are not carried in the CSV, so <code># artic-bed-version v3.0</code> is lost on the way back. Re-add any headers you need to keep.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Do not use <code>--use-header-aliases</code> when you intend to convert back. Column names are read literally, so <code>gc</code> aliased to <code>fractiongc</code> would return as an attribute named <code>fractiongc</code>.</p>
+</div>
+<p>The same round trip is available from python:</p>
+<pre><code class="language-python">from primalbedtools.scheme import Scheme
+
+# export
+scheme = Scheme.from_file(&quot;primers.bed&quot;)
+open(&quot;primers.csv&quot;, &quot;w&quot;).write(scheme.to_delim_str())
+
+# ...edit primers.csv, then read it back
+weighted = Scheme.from_delim_file(&quot;primers.csv&quot;)
+print(weighted.bedlines[0].attributes)
+{'pw': 1.4}
+</code></pre>
 
 
 
