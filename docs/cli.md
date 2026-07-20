@@ -22,6 +22,19 @@ conda install bioconda::primalbedtools
 primalbedtools <command> [options]
 ```
 
+## Reading from stdin
+
+Pass `-` in place of a BED file path to read from stdin, which lets commands be
+chained:
+
+```bash
+cat primers.bed | primalbedtools sort - | primalbedtools amplicon -
+primalbedtools update primers.bed | primalbedtools validate - reference.fasta
+```
+
+The `diff` command is the exception; it takes two BED files and requires both as
+paths.
+
 ## Global options
 
 These apply to every command and must be given **before** the command name.
