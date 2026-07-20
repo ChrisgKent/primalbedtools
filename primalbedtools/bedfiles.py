@@ -187,6 +187,7 @@ def parse_primer_attributes_str(v: str) -> Optional[dict[str, str]]:
 
 def create_primer_attributes_str(
     primer_attributes: Union[dict[str, Union[str, float]], dict[str, str], None],
+    sort_keys: bool = False,
 ) -> Optional[str]:
     """
     Parses the dict into the ';' separated str. Strips all whitespace
@@ -197,7 +198,10 @@ def create_primer_attributes_str(
         return None
 
     attr_list = []
-    for k, v in primer_attributes.items():
+    items = primer_attributes.items()
+    if sort_keys:
+        items = sorted(items, key=lambda kv: str(kv[0]))
+    for k, v in items:
         clean_k = strip_all_white_space(str(k))
         clean_v = strip_all_white_space(str(v))
 
@@ -789,9 +793,11 @@ class BedLine:
         """Return 'LEFT' or 'RIGHT' based on strand"""
         return "LEFT" if self.strand == Strand.FORWARD.value else "RIGHT"
 
-    def to_bed(self, ignore_attr: bool = False) -> str:
+    def to_bed(self, ignore_attr: bool = False, sort_attr: bool = False) -> str:
         """Convert the BedLine object to a BED formatted string."""
-        attribute_str = create_primer_attributes_str(self.attributes)
+        attribute_str = create_primer_attributes_str(
+            self.attributes, sort_keys=sort_attr
+        )
         if attribute_str is None or ignore_attr:
             attribute_str = ""
         else:
@@ -864,6 +870,7 @@ class BedLineParser:
         headers: typing.Optional[list[str]],
         bedlines: list[BedLine],
         ignore_attr: bool = False,
+        sort_attr: bool = False,
     ) -> str:
         """Creates a BED file string from headers and BedLine objects.
 
@@ -884,7 +891,7 @@ class BedLineParser:
             >>> headers = ["Track name=primers"]
             >>> bed_string = BedLineParser.to_str(headers, bedlines)
         """
-        return create_bedfile_str(headers, bedlines, ignore_attr)
+        return create_bedfile_str(headers, bedlines, ignore_attr, sort_attr=sort_attr)
 
     @staticmethod
     def to_file(
@@ -984,6 +991,7 @@ def create_bedfile_str(
     headers: typing.Optional[list[str]],
     bedlines: list[BedLine],
     ignore_attr: bool = False,
+    sort_attr: bool = False,
 ) -> str:
     bedfile_str: list[str] = []
     if headers:
@@ -994,7 +1002,7 @@ def create_bedfile_str(
             bedfile_str.append(header + "\n")
     # Add bedlines
     for bedline in bedlines:
-        bedfile_str.append(bedline.to_bed(ignore_attr))
+        bedfile_str.append(bedline.to_bed(ignore_attr, sort_attr=sort_attr))
 
     return "".join(bedfile_str)
 

@@ -306,6 +306,22 @@ class TestBedLine(unittest.TestCase):
             "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\t\n",
         )
 
+    def test_bedline_to_bed_sort_attr(self):
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+            attributes={"b": 2, "a": 1},
+        )
+        self.assertEqual(
+            bedline.to_bed(sort_attr=True),
+            "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\ta=1;b=2\n",
+        )
+
     def test_bedline_create_right(self):
         bedline = BedLine(
             chrom="chr1",
