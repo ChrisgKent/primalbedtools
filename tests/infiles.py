@@ -12,5 +12,8 @@ TEST_MIXED_PREFIX_BEDFILE = (
     pathlib.Path(__file__).parent / "inputs/test.mixed_prefix.bed"
 )
 
+TEST_PRIMER_BEDFILE = pathlib.Path(__file__).parent / "inputs/primer.bed"
+
 # fasta
 FASTA_PATH = pathlib.Path(__file__).parent / "inputs/msa.input.fasta"
+REFERENCE_PATH = pathlib.Path(__file__).parent / "inputs/reference.fasta"

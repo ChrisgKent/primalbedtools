@@ -6,7 +6,12 @@ from unittest import mock
 
 from primalbedtools.logs import reset_cli_logging
 from primalbedtools.main import main
-from tests.infiles import TEST_BEDFILE, TEST_MIXED_PREFIX_BEDFILE
+from tests.infiles import (
+    REFERENCE_PATH,
+    TEST_BEDFILE,
+    TEST_MIXED_PREFIX_BEDFILE,
+    TEST_PRIMER_BEDFILE,
+)
 
 
 class CliTestCase(unittest.TestCase):
@@ -15,13 +20,17 @@ class CliTestCase(unittest.TestCase):
         reset_cli_logging()
         return super().tearDown()
 
-    def run_cli(self, argv):
+    def run_cli(self, argv, stdin=None):
         """Run main() with argv, returning (exit_code, stdout, stderr)."""
         out, err = io.StringIO(), io.StringIO()
-        with mock.patch.object(sys, "argv", ["pbt"] + argv):
-            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                with self.assertRaises(SystemExit) as cm:
-                    main()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch.object(sys, "argv", ["pbt"] + argv))
+            stack.enter_context(contextlib.redirect_stdout(out))
+            stack.enter_context(contextlib.redirect_stderr(err))
+            if stdin is not None:
+                stack.enter_context(mock.patch.object(sys, "stdin", io.StringIO(stdin)))
+            with self.assertRaises(SystemExit) as cm:
+                main()
         return cm.exception.code, out.getvalue(), err.getvalue()
 
 
@@ -77,6 +86,50 @@ class TestValidateCli(CliTestCase):
         _code, _out, err = self.run_cli(["validate_bedfile", str(TEST_BEDFILE)])
 
         self.assertNotIn("prefix", err)
+
+
+class TestStdinInput(CliTestCase):
+    """A bed path of "-" reads from stdin."""
+
+    def setUp(self) -> None:
+        self.bed_text = TEST_BEDFILE.read_text()
+        return super().setUp()
+
+    def test_format_round_trips_through_stdin(self):
+        _code, from_stdin, _err = self.run_cli(["format", "-"], stdin=self.bed_text)
+        _code, from_file, _err = self.run_cli(["format", str(TEST_BEDFILE)])
+
+        self.assertEqual(from_stdin, from_file)
+        self.assertIn("SARS-CoV-2_1_LEFT_1", from_stdin)
+
+    def test_amplicon_reads_stdin(self):
+        _code, out, _err = self.run_cli(["amplicon", "-"], stdin=self.bed_text)
+
+        self.assertIn("SARS-CoV-2_1", out)
+        for line in out.splitlines():
+            self.assertEqual(len(line.split("\t")), 5)
+
+    def test_sort_reads_stdin(self):
+        _code, out, _err = self.run_cli(["sort", "-"], stdin=self.bed_text)
+
+        self.assertIn("SARS-CoV-2_1_LEFT_1", out)
+
+    def test_validate_reads_stdin_once(self):
+        # validate used to re-open the path after main() had already read it,
+        # which consumes stdin twice and finds nothing the second time.
+        code, _out, _err = self.run_cli(
+            ["validate", "-", str(REFERENCE_PATH)],
+            stdin=TEST_PRIMER_BEDFILE.read_text(),
+        )
+
+        self.assertEqual(code, 0)
+
+    def test_validate_from_file_still_works(self):
+        code, _out, _err = self.run_cli(
+            ["validate", str(TEST_PRIMER_BEDFILE), str(REFERENCE_PATH)]
+        )
+
+        self.assertEqual(code, 0)
 
 
 if __name__ == "__main__":
