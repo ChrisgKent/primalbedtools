@@ -234,3 +234,60 @@ primalbedtools downgrade primers.v2.bed > primers.v1.bed
 # Downgrade without alternative primers
 primalbedtools downgrade primers.v2.bed --merge-alts > primers.v1.merged.bed
 ```
+
+### csv
+
+Expand a BED file into a CSV, with one column per primer attribute.
+
+```bash
+primalbedtools csv <bed_file> [--no-headers] [--use-header-aliases]
+```
+
+**Arguments:**
+
+- `bed`: Input BED file, or `-` for stdin
+- `--no-headers`: Omit the column header row
+- `--use-header-aliases`: Rename attribute columns using the bed's `# key=alias` headers
+
+### from-csv
+
+Convert a CSV produced by `csv` back into a BED file. Each column outside the
+fixed schema becomes a primer attribute, with the column name used as the
+attribute key:
+
+```
+pw,gc            ->   pw=1.4;gc=0.35
+1.4,0.35
+```
+
+```bash
+primalbedtools from-csv <csv_file>
+```
+
+**Arguments:**
+
+- `csv`: Input CSV file
+
+**Example:**
+```bash
+primalbedtools csv primers.bed > primers.csv
+# edit primers.csv in a spreadsheet
+primalbedtools from-csv primers.csv > edited.bed
+```
+
+**Round tripping.** `csv` followed by `from-csv` reproduces the primer lines
+exactly, with three caveats:
+
+- **Bed `#` headers are dropped.** The CSV has nowhere to carry them, so the
+  output has no headers.
+- **Attribute column names are taken literally.** A CSV written with
+  `--use-header-aliases` yields the aliased names as attribute keys, so `gc`
+  aliased to `fractiongc` comes back as `fractiongc`. Export without the flag if
+  you intend to convert back.
+- **`--no-headers` output cannot be converted back**, since the column names are
+  what name the attributes.
+
+Empty cells mean the attribute is absent from that primer rather than set to an
+empty value. `amplicon_prefix`, `amplicon_number`, `primer_class_str` and
+`primer_suffix` are derived from `primername`; if they disagree with it the file
+is rejected, naming the offending line.
