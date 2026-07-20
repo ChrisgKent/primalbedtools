@@ -132,6 +132,11 @@ def main():
         help="Ignore attributes during comparison",
     )
     diff_parser.add_argument(
+        "--ignore-attr-order",
+        action="store_true",
+        help="Ignore the order of attribute keys during comparison",
+    )
+    diff_parser.add_argument(
         "--ignore-header",
         action="store_true",
         help="Ignore headers during comparison",
@@ -161,6 +166,7 @@ def main():
                 header2=scheme2.headers,
                 ignore_order=args.ignore_order,
                 ignore_attr=args.ignore_attr,
+                ignore_attr_order=args.ignore_attr_order,
                 ignore_header=args.ignore_header,
                 ignore_no_diff=args.ignore_no_diff,
                 ignore_primer_prefix=args.ignore_primer_prefix,
@@ -173,6 +179,7 @@ def main():
                 header2=scheme2.headers,
                 ignore_order=args.ignore_order,
                 ignore_attr=args.ignore_attr,
+                ignore_attr_order=args.ignore_attr_order,
                 ignore_header=args.ignore_header,
                 ignore_primer_prefix=args.ignore_primer_prefix,
             )
