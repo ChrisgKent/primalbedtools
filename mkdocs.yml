@@ -20,7 +20,7 @@ markdown_extensions:
   - admonition
 
 nav:
-  - primalbedtools: index.md
+  - Quick Start: index.md
   - How To Guides: how-to-guides.md
   - Command Line Interface: cli.md
   - API: api.md

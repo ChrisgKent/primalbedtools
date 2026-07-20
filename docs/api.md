@@ -1,4 +1,9 @@
 
+::: primalbedtools.scheme
+    options:
+        heading: "Scheme"
+        toc_label: "Scheme"
+        
 ::: primalbedtools.bedfiles
     options:
         heading: "Bedfiles"
@@ -6,7 +11,5 @@
 
 ::: primalbedtools.amplicons
     options:
-        heading: "amplicons"
-        toc_label: "amplicons"
-
-::: primalbedtools.scheme
+        heading: "Amplicons"
+        toc_label: "Amplicons"
