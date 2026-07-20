@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 
 from primalbedtools.bedfiles import (
@@ -6,6 +7,12 @@ from primalbedtools.bedfiles import (
     PrimerClass,
     group_amplicons,
 )
+from primalbedtools.logs import get_logger
+
+logger = get_logger(__name__)
+
+# Cap on how many amplicon names a divergence summary spells out per prefix set
+MAX_REPORTED_AMPLICONS = 10
 
 
 def _group_by_value(bedlines: list[BedLine], attr: str, label: str) -> str:
@@ -27,6 +34,34 @@ def _group_by_value(bedlines: list[BedLine], attr: str, label: str) -> str:
     )
 
 
+def _format_prefix_divergence(
+    amplicons: list["Amplicon"],
+    max_reported: int = MAX_REPORTED_AMPLICONS,
+) -> str:
+    """Summarise amplicons whose primers carry more than one prefix.
+
+    Amplicons are grouped by their exact set of prefixes, so a scheme-wide split
+    (every amplicon mixing "<scheme>-F" with "<scheme>-R", say) collapses to a
+    single line rather than one line per amplicon.
+    """
+    groups: dict = {}
+    for amplicon in amplicons:
+        groups.setdefault(tuple(amplicon.prefixes), []).append(amplicon)
+
+    lines = [
+        f"{len(amplicons)} amplicon(s) have primers with more than one prefix. "
+        "The joined prefix is used in the amplicon name."
+    ]
+    for prefixes, group in sorted(groups.items()):
+        group = sorted(group, key=lambda a: (a.chrom, a.amplicon_number))
+        shown = ", ".join(a.amplicon_name for a in group[:max_reported])
+        remaining = len(group) - max_reported
+        if remaining > 0:
+            shown += f", ... (+{remaining} more)"
+        lines.append(f"  prefixes {', '.join(prefixes)}: {shown}")
+    return "\n".join(lines)
+
+
 class Amplicon:
     """A class representing a PCR amplicon with forward and reverse primers, and optional probes.
 
@@ -41,7 +76,10 @@ class Amplicon:
         chrom (str): Chromosome name where the amplicon is located
         pool (int): 1-based pool number
         amplicon_number (int): Amplicon number from primer names
-        prefix (str): Amplicon prefix from primer names
+        prefix (str): Amplicon prefix from primer names. If the primers carry
+            more than one prefix, all of them joined with "-"
+        prefixes (list[str]): Sorted, de-duplicated prefixes found on the
+            primers. More than one entry means the primers disagree
 
     Raises:
         ValueError: If primers have inconsistent chromosome, pool, or amplicon numbers
@@ -70,6 +108,7 @@ class Amplicon:
     pool: int
     amplicon_number: int
     prefix: str
+    prefixes: list[str]
 
     def __init__(
         self,
@@ -97,16 +136,20 @@ class Amplicon:
 
         all_lines = left + right + probes
 
-        # All prefixes must be the same
-        prefixes = set([bedline.amplicon_prefix for bedline in all_lines])
-        prefixes = sorted(prefixes)
+        # Prefixes should agree. When they don't, every prefix is kept in the
+        # name so the divergence stays visible rather than being silently
+        # resolved to one of them.
+        prefixes = sorted({bedline.amplicon_prefix for bedline in all_lines})
 
-        if len(prefixes) != 1:
-            print(
-                f"All bedlines must have the same prefix ({','.join(prefixes)}). Using the alphanumerically first one ({prefixes[0]}).\n"
+        if len(prefixes) > 1 and logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                f"Amplicon primers have differing prefixes ({', '.join(prefixes)}); "
+                f"using the joined prefix ({'-'.join(prefixes)}).\n"
                 + _group_by_value(all_lines, "amplicon_prefix", "prefix")
             )
-        self.prefix = prefixes[0]
+
+        self.prefixes = prefixes
+        self.prefix = "-".join(prefixes)
 
         # Check all chrom are the same
         chroms = set([bedline.chrom for bedline in all_lines])
@@ -353,6 +396,11 @@ def create_amplicons(bedlines: list[BedLine]) -> list[Amplicon]:
         ValueError: If any amplicon is missing LEFT or RIGHT primers
         ValueError: If primers within an amplicon have inconsistent attributes
 
+    Note:
+        Primers that disagree on their prefix are not an error. A single warning
+        summarising every affected amplicon is logged, and each such amplicon is
+        named using all of its prefixes joined with "-".
+
     Examples:
         >>> from primalbedtools.bedfiles import BedLineParser
         >>> headers, bedlines = BedLineParser.from_file("primers.bed")
@@ -361,14 +409,20 @@ def create_amplicons(bedlines: list[BedLine]) -> list[Amplicon]:
     """
     grouped_bedlines = group_amplicons(bedlines)
     primer_pairs = []
+    divergent = []
     for pdict in grouped_bedlines:
-        primer_pairs.append(
-            Amplicon(
-                left=pdict.get(PrimerClass.LEFT.value, []),
-                right=pdict.get(PrimerClass.RIGHT.value, []),
-                probes=pdict.get(PrimerClass.PROBE.value, []),
-            )
+        amplicon = Amplicon(
+            left=pdict.get(PrimerClass.LEFT.value, []),
+            right=pdict.get(PrimerClass.RIGHT.value, []),
+            probes=pdict.get(PrimerClass.PROBE.value, []),
         )
+        primer_pairs.append(amplicon)
+        if len(amplicon.prefixes) > 1:
+            divergent.append(amplicon)
+
+    # Reported once for the whole scheme rather than once per amplicon
+    if divergent:
+        logger.warning(_format_prefix_divergence(divergent))
 
     return primer_pairs
 
