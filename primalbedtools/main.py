@@ -183,6 +183,13 @@ def main():
     configure_cli_logging(verbose=args.verbose, quiet=args.quiet)
 
     if args.subparser_name == "diff":
+        # stdin can only be consumed once, so the second read would compare
+        # against an empty scheme
+        if args.bedfile1 == "-" and args.bedfile2 == "-":
+            diff_parser.error(
+                "only one of bedfile1/bedfile2 can be read from stdin (-)"
+            )
+
         scheme1 = Scheme.from_file(args.bedfile1)
         scheme2 = Scheme.from_file(args.bedfile2)
 
@@ -248,6 +255,8 @@ def main():
         exit(0)  # Exit early
     elif args.subparser_name == "merge":
         scheme.bedlines = BedFileModifier.merge_primers(scheme.bedlines)
+        print(scheme.to_str(), end="")
+        exit(0)
     elif args.subparser_name == "fasta":
         for line in scheme.bedlines:
             print(line.to_fasta(), end="")
