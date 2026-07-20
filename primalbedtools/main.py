@@ -123,6 +123,13 @@ def main():
         help="Should header aliases be used.",
         action="store_true",
     )
+
+    # from-csv subcommand
+    from_csv_parser = subparsers.add_parser(
+        "from-csv", help="Convert a CSV back into a bed file"
+    )
+    from_csv_parser.add_argument("csv", type=str, help="Input CSV file")
+
     # diff subcommand
     diff_parser = subparsers.add_parser(
         "diff", help="Calculate the difference between two bedfiles"
@@ -207,6 +214,10 @@ def main():
 
         for line in diff_gen:
             print(line, end="")
+        exit(0)
+
+    if args.subparser_name == "from-csv":
+        print(Scheme.from_delim_file(args.csv).to_str(), end="")
         exit(0)
 
     # Read in the scheme
