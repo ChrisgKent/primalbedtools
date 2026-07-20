@@ -5,6 +5,7 @@ from primalbedtools.amplicons import create_amplicons
 from primalbedtools.bedfiles import BedFileModifier
 from primalbedtools.diff import ndiff_bedlines, unified_diff_bedlines
 from primalbedtools.fasta import read_fasta
+from primalbedtools.logs import configure_cli_logging
 from primalbedtools.remap import remap
 from primalbedtools.scheme import Scheme
 from primalbedtools.validate import validate, validate_primerbed
@@ -14,6 +15,19 @@ def main():
     parser = argparse.ArgumentParser(description="PrimalBedTools")
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {version('primalbedtools')}"
+    )
+    verbosity = parser.add_mutually_exclusive_group()
+    verbosity.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable debug-level logging on stderr",
+    )
+    verbosity.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress warnings; only errors are logged",
     )
 
     subparsers = parser.add_subparsers(dest="subparser_name", required=True)
@@ -153,6 +167,7 @@ def main():
     )
 
     args = parser.parse_args()
+    configure_cli_logging(verbose=args.verbose, quiet=args.quiet)
 
     if args.subparser_name == "diff":
         scheme1 = Scheme.from_file(args.bedfile1)
