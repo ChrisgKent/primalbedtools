@@ -4,6 +4,7 @@ import unittest
 from primalbedtools.scheme import DEFAULT_CSV_HEADERS, Scheme
 from tests.infiles import (
     TEST_ATTRIBUTES_BEDFILE,
+    TEST_BEDFILE,
     TEST_PROBE_BEDFILE,
 )
 
@@ -162,3 +163,109 @@ class TestScheme(unittest.TestCase):
         original_headers = list(DEFAULT_CSV_HEADERS)
         _csv_str = scheme.to_delim_str(include_headers=True, use_header_aliases=False)
         self.assertEqual(DEFAULT_CSV_HEADERS, original_headers)
+
+
+class TestFromDelimStr(unittest.TestCase):
+    """from_delim_str reverses to_delim_str."""
+
+    def round_trip(self, bedfile):
+        scheme = Scheme.from_file(str(bedfile))
+        parsed = Scheme.from_delim_str(scheme.to_delim_str())
+        return scheme, parsed
+
+    def test_round_trips_bedlines(self):
+        for bedfile in (TEST_ATTRIBUTES_BEDFILE, TEST_PROBE_BEDFILE, TEST_BEDFILE):
+            with self.subTest(bedfile=bedfile.name):
+                scheme, parsed = self.round_trip(bedfile)
+                self.assertEqual(
+                    [bl.to_bed() for bl in parsed.bedlines],
+                    [bl.to_bed() for bl in scheme.bedlines],
+                )
+
+    def test_round_trips_attributes(self):
+        scheme, parsed = self.round_trip(TEST_ATTRIBUTES_BEDFILE)
+
+        # pw is coerced to float by the attributes setter, so the types survive
+        self.assertEqual(parsed.bedlines[0].attributes, {"pw": 1.4, "gc": "0.35"})
+        self.assertEqual(
+            [bl.attributes for bl in parsed.bedlines],
+            [bl.attributes for bl in scheme.bedlines],
+        )
+
+    def test_headers_are_not_carried(self):
+        # The delimited format has nowhere to put them
+        scheme, parsed = self.round_trip(TEST_ATTRIBUTES_BEDFILE)
+
+        self.assertTrue(scheme.headers)
+        self.assertEqual(parsed.headers, [])
+
+    def test_aliased_columns_are_taken_literally(self):
+        scheme = Scheme.from_file(str(TEST_ATTRIBUTES_BEDFILE))
+        parsed = Scheme.from_delim_str(scheme.to_delim_str(use_header_aliases=True))
+
+        # "gc" is aliased to "fractiongc" by a header, and without the headers
+        # there is no map to reverse it
+        self.assertIn("fractiongc", parsed.bedlines[0].attributes)
+        self.assertNotIn("gc", parsed.bedlines[0].attributes)
+
+    def test_empty_cells_mean_absent_attribute(self):
+        csv_str = (
+            "chrom,start,end,primername,pool,strand,sequence,pw\n"
+            "chr1,100,120,test_1_LEFT_1,1,+,ACGT,1.4\n"
+            "chr1,200,220,test_1_RIGHT_1,1,-,ACGT,\n"
+        )
+        parsed = Scheme.from_delim_str(csv_str)
+
+        self.assertEqual(parsed.bedlines[0].attributes, {"pw": 1.4})
+        self.assertEqual(parsed.bedlines[1].attributes, {})
+
+    def test_blank_and_comment_rows_are_skipped(self):
+        csv_str = (
+            "# a comment\n"
+            "chrom,start,end,primername,pool,strand,sequence\n"
+            "\n"
+            "chr1,100,120,test_1_LEFT_1,1,+,ACGT\n"
+        )
+        parsed = Scheme.from_delim_str(csv_str)
+
+        self.assertEqual(len(parsed.bedlines), 1)
+
+    def test_missing_required_column_raises(self):
+        csv_str = "chrom,start,end,pool,strand,sequence\nchr1,100,120,1,+,ACGT\n"
+
+        with self.assertRaisesRegex(
+            ValueError, r"Missing required column\(s\): primername"
+        ):
+            Scheme.from_delim_str(csv_str)
+
+    def test_ragged_row_raises(self):
+        csv_str = (
+            "chrom,start,end,primername,pool,strand,sequence\n"
+            "chr1,100,120,test_1_LEFT_1,1,+\n"
+        )
+
+        with self.assertRaisesRegex(ValueError, r"Line 2 has 6 field\(s\), expected 7"):
+            Scheme.from_delim_str(csv_str)
+
+    def test_derived_column_mismatch_raises(self):
+        csv_str = (
+            "chrom,start,end,primername,pool,strand,sequence,amplicon_prefix\n"
+            "chr1,100,120,test_1_LEFT_1,1,+,ACGT,EDITED\n"
+        )
+
+        with self.assertRaisesRegex(ValueError, r"amplicon_prefix \(EDITED\)"):
+            Scheme.from_delim_str(csv_str)
+
+    def test_matching_derived_columns_accepted(self):
+        csv_str = (
+            "chrom,start,end,primername,pool,strand,sequence,"
+            "amplicon_prefix,amplicon_number,primer_class_str,primer_suffix\n"
+            "chr1,100,120,test_1_LEFT_1,1,+,ACGT,test,1,LEFT,1\n"
+        )
+        parsed = Scheme.from_delim_str(csv_str)
+
+        self.assertEqual(parsed.bedlines[0].primername, "test_1_LEFT_1")
+
+    def test_empty_input_raises(self):
+        with self.assertRaisesRegex(ValueError, r"No rows found"):
+            Scheme.from_delim_str("")

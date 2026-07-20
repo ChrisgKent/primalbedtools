@@ -1,6 +1,8 @@
 import contextlib
 import io
+import os
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -8,6 +10,7 @@ from primalbedtools.logs import reset_cli_logging
 from primalbedtools.main import main
 from tests.infiles import (
     REFERENCE_PATH,
+    TEST_ATTRIBUTES_BEDFILE,
     TEST_BEDFILE,
     TEST_MIXED_PREFIX_BEDFILE,
     TEST_PRIMER_BEDFILE,
@@ -86,6 +89,27 @@ class TestValidateCli(CliTestCase):
         _code, _out, err = self.run_cli(["validate_bedfile", str(TEST_BEDFILE)])
 
         self.assertNotIn("prefix", err)
+
+
+class TestFromCsvCli(CliTestCase):
+    def test_round_trips_via_csv(self):
+        _code, csv_out, _err = self.run_cli(["csv", str(TEST_ATTRIBUTES_BEDFILE)])
+
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False) as f:
+            f.write(csv_out)
+            csv_path = f.name
+        self.addCleanup(os.unlink, csv_path)
+
+        code, bed_out, _err = self.run_cli(["from-csv", csv_path])
+
+        self.assertEqual(code, 0)
+        # Headers are dropped, so compare against the bedlines only
+        expected = "".join(
+            line + "\n"
+            for line in TEST_ATTRIBUTES_BEDFILE.read_text().splitlines()
+            if not line.startswith("#")
+        )
+        self.assertEqual(bed_out, expected)
 
 
 class TestStdinInput(CliTestCase):
