@@ -22,6 +22,27 @@ conda install bioconda::primalbedtools
 primalbedtools <command> [options]
 ```
 
+## Global options
+
+These apply to every command and must be given **before** the command name.
+
+- `-v`, `--verbose`: Enable debug-level logging
+- `-q`, `--quiet`: Suppress warnings, leaving only errors
+
+```bash
+primalbedtools -v amplicon primers.bed   # correct
+primalbedtools amplicon -v primers.bed   # error
+```
+
+Warnings and other advisory messages are written to stderr, so redirecting
+stdout captures only the data:
+
+```bash
+primalbedtools amplicon primers.bed > amplicons.bed   # warnings still shown
+primalbedtools amplicon primers.bed > amplicons.bed 2>/dev/null   # silenced
+primalbedtools amplicon primers.bed > amplicons.bed 2>&1   # folded into the file
+```
+
 ## Commands
 
 ### remap
@@ -96,6 +117,19 @@ primalbedtools amplicon <bed_file> [--primertrim]
 primalbedtools amplicon primers.bed > amplicons.txt
 primalbedtools amplicon primers.bed --primertrim > trimmed_amplicons.txt
 ```
+
+**Mixed prefixes:** primers belonging to one amplicon normally share a prefix.
+Where they don't, the amplicon is named using every prefix joined with `-`, so
+the mismatch stays visible in the output rather than being silently resolved to
+one of them:
+
+```
+SARS-CoV-2-F_1_LEFT_1
+SARS-CoV-2-R_1_RIGHT_1   ->   SARS-CoV-2-F-SARS-CoV-2-R_1
+```
+
+A single warning summarising every affected amplicon is written to stderr. Use
+`-v` to list them individually, or `-q` to suppress it.
 
 ### merge
 
@@ -187,4 +221,3 @@ primalbedtools downgrade primers.v2.bed > primers.v1.bed
 # Downgrade without alternative primers
 primalbedtools downgrade primers.v2.bed --merge-alts > primers.v1.merged.bed
 ```
-
