@@ -123,7 +123,9 @@ class Scheme:
         Returns:
             Scheme: A new Scheme object with no headers.
         """
-        with open(file) as f:
+        # utf-8-sig drops a leading BOM, which spreadsheets often write, and is
+        # a no-op otherwise
+        with open(file, encoding="utf-8-sig") as f:
             return from_delim_str(f.read(), delimiter=delimiter)
 
     def to_str(self) -> str:

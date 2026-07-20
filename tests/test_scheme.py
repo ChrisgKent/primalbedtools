@@ -1,4 +1,6 @@
+import os
 import random
+import tempfile
 import unittest
 
 from primalbedtools.scheme import DEFAULT_CSV_HEADERS, Scheme
@@ -269,3 +271,35 @@ class TestFromDelimStr(unittest.TestCase):
     def test_empty_input_raises(self):
         with self.assertRaisesRegex(ValueError, r"No rows found"):
             Scheme.from_delim_str("")
+
+    def write_csv(self, text, encoding="utf-8"):
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".csv", encoding=encoding, delete=False
+        ) as f:
+            f.write(text)
+        self.addCleanup(os.unlink, f.name)
+        return f.name
+
+    def test_bom_is_tolerated(self):
+        # Spreadsheets often save as "CSV UTF-8", which writes a leading BOM.
+        # It binds to the first column name, hiding "chrom" from the parser.
+        csv_str = (
+            "chrom,start,end,primername,pool,strand,sequence\n"
+            "chr1,100,120,test_1_LEFT_1,1,+,ACGT\n"
+        )
+        path = self.write_csv(csv_str, encoding="utf-8-sig")
+
+        parsed = Scheme.from_delim_file(path)
+
+        self.assertEqual(parsed.bedlines[0].chrom, "chr1")
+
+    def test_crlf_is_tolerated(self):
+        csv_str = (
+            "chrom,start,end,primername,pool,strand,sequence,pw\r\n"
+            "chr1,100,120,test_1_LEFT_1,1,+,ACGT,1.4\r\n"
+        )
+
+        parsed = Scheme.from_delim_str(csv_str)
+
+        self.assertEqual(len(parsed.bedlines), 1)
+        self.assertEqual(parsed.bedlines[0].attributes, {"pw": 1.4})
