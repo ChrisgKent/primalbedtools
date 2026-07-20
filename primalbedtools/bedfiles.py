@@ -2,9 +2,15 @@ import enum
 import pathlib
 import re
 import typing
+from functools import total_ordering
 from typing import Optional, Union
 
-from primalbedtools.utils import expand_ambiguous_bases, rc_seq, strip_all_white_space
+from primalbedtools.utils import (
+    expand_ambiguous_bases,
+    rc_seq,
+    read_text,
+    strip_all_white_space,
+)
 
 # Regular expressions for primer names
 V1_PRIMERNAME = r"^[a-zA-Z0-9\-]+_[0-9]+_(LEFT|RIGHT|PROBE)(_ALT[0-9]*|_alt[0-9]*)*$"
@@ -29,6 +35,14 @@ class PrimerClass(enum.Enum):
     LEFT = "LEFT"
     RIGHT = "RIGHT"
     PROBE = "PROBE"
+
+
+# Primer class order: LEFT, PROBE, RIGHT
+PRIMER_CLASS_ORDER = {
+    PrimerClass.LEFT: 0,
+    PrimerClass.PROBE: 1,
+    PrimerClass.RIGHT: 2,
+}
 
 
 class Strand(enum.Enum):
@@ -120,7 +134,12 @@ def create_primername(
     """
     Creates an unvalidated primername string.
     """
-    values = [amplicon_prefix, amplicon_number, primer_class.value, primer_suffix]
+    values = [
+        amplicon_prefix,
+        amplicon_number,
+        primer_class.value,
+        primer_suffix,
+    ]
     return "_".join([str(x) for x in values if x is not None])
 
 
@@ -169,6 +188,7 @@ def parse_primer_attributes_str(v: str) -> Optional[dict[str, str]]:
 
 def create_primer_attributes_str(
     primer_attributes: Union[dict[str, Union[str, float]], dict[str, str], None],
+    sort_keys: bool = False,
 ) -> Optional[str]:
     """
     Parses the dict into the ';' separated str. Strips all whitespace
@@ -177,10 +197,20 @@ def create_primer_attributes_str(
     """
     if primer_attributes is None or not primer_attributes:
         return None
-    return ";".join(
-        f"{strip_all_white_space(k)}={strip_all_white_space(str(v))}"
-        for k, v in primer_attributes.items()
-    )
+
+    attr_list = []
+    items = primer_attributes.items()
+    if sort_keys:
+        items = sorted(items, key=lambda kv: str(kv[0]))
+    for k, v in items:
+        clean_k = strip_all_white_space(str(k))
+        clean_v = strip_all_white_space(str(v))
+
+        if not clean_k or not clean_v:
+            continue
+        attr_list.append(f"{clean_k}={clean_v}")
+
+    return ";".join(attr_list) if attr_list else None
 
 
 def lr_string_to_strand_char(s: str) -> str:
@@ -272,7 +302,9 @@ def validate_primer_suffix(
         return int_v
 
 
-def validate_primer_name(primername: str) -> tuple[str, str, str, Union[str, None]]:
+def validate_primer_name(
+    primername: str,
+) -> tuple[str, str, str, Union[str, None]]:
     """
     Validates the structure of the primer Name, and returns the unvalidated components.
     (Amplicon_prefix, Amplicon_number, Primer_class, Primer_suffix)
@@ -291,6 +323,7 @@ def validate_primer_name(primername: str) -> tuple[str, str, str, Union[str, Non
     return (parts[0], parts[1], parts[2], parts[3])
 
 
+@total_ordering
 class BedLine:
     """A class representing a single line in a primer.bed file.
 
@@ -406,6 +439,40 @@ class BedLine:
             raise ValueError(
                 f"primername ({self.primername}) implies direction ({self.primer_class_str}), which is incompatible with ({strand})"
             )
+
+    def __eq__(self, other):
+        if not isinstance(other, BedLine):
+            return NotImplemented
+        return self.to_bed() == other.to_bed()
+
+    def __lt__(self, other):
+        if not isinstance(other, BedLine):
+            return NotImplemented
+        return self._sort_key() < other._sort_key()
+
+    def _sort_key(self):
+        """Return a tuple for sorting."""
+
+        # Primer suffix order: int, str, None
+        suffix = self.primer_suffix
+        if isinstance(suffix, int):
+            suffix_key = (0, suffix)
+        elif isinstance(suffix, str):
+            suffix_key = (1, suffix)
+        else:
+            suffix_key = (2, "")  # None
+
+        return (
+            self.chrom,
+            self.amplicon_number,
+            PRIMER_CLASS_ORDER.get(self.primer_class, 3),
+            suffix_key,
+            self.sequence,
+            self.primername,
+        )
+
+    def __hash__(self):
+        return hash(self._sort_key())
 
     @property
     def chrom(self):
@@ -559,6 +626,8 @@ class BedLine:
             self.force_change(new_primer_class.value, new_strand)
         elif implied_strand:
             self.force_change(new_primer_class.value, implied_strand)
+        else:
+            self._primer_class = new_primer_class
 
         # Try to parse the primer_suffix
         try:
@@ -638,6 +707,8 @@ class BedLine:
         elif v is None:
             self._attributes = {}
             return
+        elif isinstance(v, (int, float)):
+            new_dict = {PRIMER_WEIGHT_KEY: v}
         else:
             raise ValueError(f"Invalid primer attributes. Got ({v})")
 
@@ -650,6 +721,18 @@ class BedLine:
             strip_all_white_space(str(k)): strip_all_white_space(str(v))
             for k, v in new_dict.items()
         }
+
+        # ';' and '=' separate the attribute string, so a key or value
+        # containing either would write a bedline that cannot be read back
+        for k, v in parsed_dict.items():
+            for field, text in (("key", k), ("value", v)):
+                bad = [c for c in (";", "=") if c in str(text)]
+                if not bad:
+                    continue
+                where = f"key ({k})" if field == "key" else f"value ({v}) for key ({k})"
+                raise ValueError(
+                    f"Invalid attribute {where}. Must not contain ({', '.join(bad)})"
+                )
 
         self._attributes = parsed_dict
 
@@ -723,16 +806,16 @@ class BedLine:
         """Return 'LEFT' or 'RIGHT' based on strand"""
         return "LEFT" if self.strand == Strand.FORWARD.value else "RIGHT"
 
-    def to_bed(self) -> str:
+    def to_bed(self, ignore_attr: bool = False, sort_attr: bool = False) -> str:
         """Convert the BedLine object to a BED formatted string."""
-        # If a attributes is provided print. Else print empty string
-
-        attribute_str = create_primer_attributes_str(self.attributes)
-        if attribute_str is None:
+        attribute_str = create_primer_attributes_str(
+            self.attributes, sort_keys=sort_attr
+        )
+        if attribute_str is None or ignore_attr:
             attribute_str = ""
         else:
-            attribute_str = "\t" + attribute_str
-        return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}{attribute_str}\n"
+            attribute_str = attribute_str
+        return f"{self.chrom}\t{self.start}\t{self.end}\t{self.primername}\t{self.pool}\t{self.strand}\t{self.sequence}\t{attribute_str}\n"
 
     def to_fasta(self, rc=False) -> str:
         """Convert the BedLine object to a FASTA formatted string."""
@@ -796,7 +879,12 @@ class BedLineParser:
         return bedline_from_str(bedfile_str)
 
     @staticmethod
-    def to_str(headers: typing.Optional[list[str]], bedlines: list[BedLine]) -> str:
+    def to_str(
+        headers: typing.Optional[list[str]],
+        bedlines: list[BedLine],
+        ignore_attr: bool = False,
+        sort_attr: bool = False,
+    ) -> str:
         """Creates a BED file string from headers and BedLine objects.
 
         Combines header lines and BedLine objects into a properly formatted
@@ -816,7 +904,7 @@ class BedLineParser:
             >>> headers = ["Track name=primers"]
             >>> bed_string = BedLineParser.to_str(headers, bedlines)
         """
-        return create_bedfile_str(headers, bedlines)
+        return create_bedfile_str(headers, bedlines, ignore_attr, sort_attr=sort_attr)
 
     @staticmethod
     def to_file(
@@ -899,7 +987,7 @@ def bedline_from_str(bedline_str: str) -> tuple[list[str], list[BedLine]]:
         if line.startswith("#"):
             headers.append(line)
         elif line:
-            bedlines.append(create_bedline(line.split("\t")))
+            bedlines.append(create_bedline(line.split()))
 
     return headers, bedlines
 
@@ -907,13 +995,15 @@ def bedline_from_str(bedline_str: str) -> tuple[list[str], list[BedLine]]:
 def read_bedfile(
     bedfile: typing.Union[str, pathlib.Path],
 ) -> tuple[list[str], list[BedLine]]:
-    with open(bedfile) as f:
-        text = f.read()
-        return bedline_from_str(text)
+    """Read a bed file from disk, or from stdin when given "-"."""
+    return bedline_from_str(read_text(bedfile))
 
 
 def create_bedfile_str(
-    headers: typing.Optional[list[str]], bedlines: list[BedLine]
+    headers: typing.Optional[list[str]],
+    bedlines: list[BedLine],
+    ignore_attr: bool = False,
+    sort_attr: bool = False,
 ) -> str:
     bedfile_str: list[str] = []
     if headers:
@@ -924,7 +1014,7 @@ def create_bedfile_str(
             bedfile_str.append(header + "\n")
     # Add bedlines
     for bedline in bedlines:
-        bedfile_str.append(bedline.to_bed())
+        bedfile_str.append(bedline.to_bed(ignore_attr, sort_attr=sort_attr))
 
     return "".join(bedfile_str)
 
@@ -933,9 +1023,10 @@ def write_bedfile(
     bedfile: typing.Union[str, pathlib.Path],
     headers: typing.Optional[list[str]],
     bedlines: list[BedLine],
+    ignore_attr: bool = False,
 ):
     with open(bedfile, "w") as f:
-        f.write(create_bedfile_str(headers, bedlines))
+        f.write(create_bedfile_str(headers, bedlines, ignore_attr))
 
 
 def group_by_chrom(list_bedlines: list[BedLine]) -> dict[str, list[BedLine]]:
@@ -961,7 +1052,9 @@ def group_by_chrom(list_bedlines: list[BedLine]) -> dict[str, list[BedLine]]:
     return bedlines_dict
 
 
-def group_by_amplicon_number(list_bedlines: list[BedLine]) -> dict[int, list[BedLine]]:
+def group_by_amplicon_number(
+    list_bedlines: list[BedLine],
+) -> dict[int, list[BedLine]]:
     """Groups a list of BedLine objects by amplicon number.
 
     Takes a list of BedLine objects and organizes them into a dictionary
@@ -1182,42 +1275,61 @@ def downgrade_primernames(bedlines: list[BedLine]) -> list[BedLine]:
     return bedlines
 
 
-def sort_bedlines(bedlines: list[BedLine]) -> list[BedLine]:
-    """
-    Sorts bedlines by chrom, start, end, primername.
+def sort_bedlines(bedlines: list[BedLine], by_pos: bool = True) -> list[BedLine]:
+    """Sorts the bedlines by chrom, amplicon number, class, and sequence.
+
+    Converts the bedlines into amplicons and sorts by chromosome and left primer position (or amplicon number).
+    Within amplicons bedlines are sorted by PrimerClass (LEFT, PROBE, RIGHT), then PrimerSuffix or position (start, end) then sequence.
+
+
+    Groups BedLine objects into primer pairs, sorts those pairs by chromosome, left primer position, then returns a flattened list of the sorted BedLine objects.
+
+    Args:
+        bedlines: A list of BedLine objects to sort.
+        by_pos: bool. Sorts the Bedlines by chrom
+
+    Returns:
+        list[BedLine]: A new list containing the sorted original BedLine objects.
+
+    Examples:
+        >>> from primalbedtools.bedfiles import BedLine, BedFileModifier
+        >>> bedlines = [BedLine(...)]  # List of BedLine objects
+        >>> sorted_lines = BedFileModifier.sort_bedlines(bedlines)
     """
     amplicons = group_amplicons(bedlines)
-    amplicons.sort(
-        key=lambda x: (
-            x[PrimerClass.LEFT.value][0].chrom,
-            x[PrimerClass.LEFT.value][0].amplicon_number,
-        )
-    )  # Uses left primers
+
+    if by_pos:
+        amplicons.sort(
+            key=lambda x: (
+                x[PrimerClass.LEFT.value][0].chrom,
+                x[PrimerClass.LEFT.value][0].end,
+            )
+        )  # Uses left primers
+    else:
+        amplicons.sort(
+            key=lambda x: (
+                x[PrimerClass.LEFT.value][0].chrom,
+                x[PrimerClass.LEFT.value][0].amplicon_number,
+            )
+        )  # Uses left primers
 
     # Sorted list
     sorted_list = []
 
+    # Sort bedlines within amplicons
     for dicts in amplicons:
+        bls = []
         # Left primers
-        lp = dicts.get(PrimerClass.LEFT.value, [])
-        lp.sort(
-            key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
-        )
-        sorted_list.extend(lp)
+        bls.extend(dicts.get(PrimerClass.LEFT.value, []))
 
         # Probes
-        pp = dicts.get(PrimerClass.PROBE.value, [])
-        pp.sort(
-            key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
-        )
-        sorted_list.extend(pp)
+        bls.extend(dicts.get(PrimerClass.PROBE.value, []))
 
         # Right Primers
-        rp = dicts.get(PrimerClass.RIGHT.value, [])
-        rp.sort(
-            key=lambda x: x.primer_suffix if x.primer_suffix is not None else x.sequence
-        )
-        sorted_list.extend(rp)
+        bls.extend(dicts.get(PrimerClass.RIGHT.value, []))
+
+        bls.sort()
+        sorted_list.extend(bls)
 
     return sorted_list
 
@@ -1355,9 +1467,7 @@ class BedFileModifier:
         return downgrade_primernames(bedlines)
 
     @staticmethod
-    def sort_bedlines(
-        bedlines: list[BedLine],
-    ) -> list[BedLine]:
+    def sort_bedlines(bedlines: list[BedLine], by_pos: bool = False) -> list[BedLine]:
         """Sorts the bedlines by chrom, amplicon number, class, and sequence.
 
         Groups BedLine objects into primer pairs, sorts those pairs by chromosome
@@ -1365,6 +1475,7 @@ class BedFileModifier:
 
         Args:
             bedlines: A list of BedLine objects to sort.
+            by_pos: bool. Sorts the Bedlines by chrom
 
         Returns:
             list[BedLine]: A new list containing the sorted original BedLine objects.
@@ -1374,7 +1485,7 @@ class BedFileModifier:
             >>> bedlines = [BedLine(...)]  # List of BedLine objects
             >>> sorted_lines = BedFileModifier.sort_bedlines(bedlines)
         """
-        return sort_bedlines(bedlines)
+        return sort_bedlines(bedlines, by_pos)
 
     @staticmethod
     def merge_primers(

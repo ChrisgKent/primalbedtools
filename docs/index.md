@@ -86,4 +86,3 @@ Alongside some calculated ones.
 >>> bl.ipool
 0
 ```
-

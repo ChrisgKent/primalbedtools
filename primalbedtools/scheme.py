@@ -1,3 +1,5 @@
+import csv
+import io
 from typing import Optional
 
 from primalbedtools.bedfiles import (
@@ -13,7 +15,8 @@ from primalbedtools.bedfiles import (
     write_bedfile,
 )
 
-DEFAULT_CSV_HEADERS = [
+# Columns needed to rebuild a BedLine
+REQUIRED_CSV_HEADERS = [
     "chrom",
     "start",
     "end",
@@ -21,11 +24,17 @@ DEFAULT_CSV_HEADERS = [
     "pool",
     "strand",
     "sequence",
+]
+
+# Columns that only restate what primername already encodes
+DERIVED_CSV_HEADERS = [
     "amplicon_prefix",
     "amplicon_number",
     "primer_class_str",
     "primer_suffix",
 ]
+
+DEFAULT_CSV_HEADERS = REQUIRED_CSV_HEADERS + DERIVED_CSV_HEADERS
 
 
 class Scheme:
@@ -62,7 +71,7 @@ class Scheme:
 
     # io
     @classmethod
-    def from_str(cls, str: str):
+    def from_str(cls, str: str) -> "Scheme":
         """Create a Scheme from a bed file string.
 
         Args:
@@ -75,7 +84,7 @@ class Scheme:
         return cls(headers, bedlines)
 
     @classmethod
-    def from_file(cls, file: str):
+    def from_file(cls, file: str) -> "Scheme":
         """Create a Scheme from a bed file on disk.
 
         Args:
@@ -86,6 +95,38 @@ class Scheme:
         """
         headers, bedlines = read_bedfile(file)
         return cls(headers, bedlines)
+
+    @classmethod
+    def from_delim_str(cls, text: str, delimiter: str = ",") -> "Scheme":
+        """Create a Scheme from a delimited string written by to_delim_str.
+
+        Args:
+            text: The delimited file content, including its column header row.
+            delimiter: Field separator.
+
+        Returns:
+            Scheme: A new Scheme object with no headers.
+        """
+        return from_delim_str(text, delimiter=delimiter)
+
+    @classmethod
+    def from_delim_file(cls, file: str, delimiter: str = ",") -> "Scheme":
+        """Create a Scheme from a delimited file on disk.
+
+        Unlike from_file, this takes a path only. Stdin is reserved for bed
+        input; use from_delim_str to parse a delimited file already in memory.
+
+        Args:
+            file: Path to the delimited file to read.
+            delimiter: Field separator.
+
+        Returns:
+            Scheme: A new Scheme object with no headers.
+        """
+        # utf-8-sig drops a leading BOM, which spreadsheets often write, and is
+        # a no-op otherwise
+        with open(file, encoding="utf-8-sig") as f:
+            return from_delim_str(f.read(), delimiter=delimiter)
 
     def to_str(self) -> str:
         """Convert the scheme to a bed file format string.
@@ -105,13 +146,13 @@ class Scheme:
         return write_bedfile(path, self.headers, self.bedlines)
 
     # modifiers
-    def sort_bedlines(self):
+    def sort_bedlines(self, by_pos: bool = False):
         """Sort the bedlines in canonical order in place.
 
-        Sorts bedlines by chromosome, amplicon number, direction, and primer suffix
+        Sorts bedlines by chromosome, amplicon number (or position), direction, and primer suffix
         to ensure consistent ordering across the scheme.
         """
-        self.bedlines = sort_bedlines(self.bedlines)
+        self.bedlines = sort_bedlines(self.bedlines, by_pos)
 
     def merge_primers(self):
         """merges bedlines with the same chrom, amplicon number and class in place"""
@@ -148,52 +189,163 @@ class Scheme:
         self, include_headers: bool = True, use_header_aliases: bool = False
     ):
         return to_delim_str(
-            self, include_headers=include_headers, use_header_aliases=use_header_aliases
+            self,
+            include_headers=include_headers,
+            use_header_aliases=use_header_aliases,
         )
 
 
 def to_delim_str(
-    scheme: Scheme, include_headers: bool = True, use_header_aliases: bool = False
+    scheme: Scheme,
+    include_headers: bool = True,
+    use_header_aliases: bool = False,
+    delimiter: str = ",",
 ) -> str:
     """
     Turns a bedfile into a full expanded delim separated file
+
+    Raises:
+        ValueError: If a primer attribute is keyed with the name of a fixed
+            column, which the delimited format cannot represent.
     """
-    # Define the default headers
-    headers = DEFAULT_CSV_HEADERS
-
-    lines_to_write: list[str] = []
-
     header_aliases = scheme.header_dict
     aliases_to_attr = {v: k for k, v in header_aliases.items()}
 
-    # Parse the attr strings add new headers
+    # Collect the attribute columns, in first-seen order
+    attribute_headers: list[str] = []
     for bl in scheme.bedlines:
         for k in bl.attributes.keys():
             if use_header_aliases:
                 k = header_aliases.get(k, k)
-            if k not in headers:
-                headers.append(k)
+            if k in DEFAULT_CSV_HEADERS:
+                raise ValueError(
+                    f"Attribute ({k}) collides with the fixed column of the same "
+                    "name and cannot be written to a delimited file. Rename the "
+                    "attribute."
+                )
+            if k not in attribute_headers:
+                attribute_headers.append(k)
 
-    # Create a csv line for each bedline
+    headers = DEFAULT_CSV_HEADERS + attribute_headers
+
+    buffer = io.StringIO()
+    # csv.writer quotes only the values that need it, so plain output is
+    # unchanged, and defaults to CRLF which would alter every line
+    writer = csv.writer(buffer, delimiter=delimiter, lineterminator="\n")
+
     if include_headers:
-        lines_to_write.append(",".join(headers))
+        writer.writerow(headers)
 
     for bl in scheme.bedlines:
-        bl_csv: list[str] = []
-        for h in headers:
-            r = None
-            try:
-                r = bl.__getattribute__(h)
-            except AttributeError:
-                # Search _attribute dict
-                if h in bl.attributes:
-                    r = bl.attributes[h]
-                elif h in aliases_to_attr:
-                    r = bl.attributes.get(aliases_to_attr[h])
+        # Fixed columns come from the BedLine itself, attribute columns from the
+        # attributes dict. Resolving both through getattr would let an attribute
+        # keyed like a BedLine property (weight, length, ...) read the property
+        # instead, silently dropping or corrupting the stored value.
+        row = [getattr(bl, h) for h in DEFAULT_CSV_HEADERS]
+        for h in attribute_headers:
+            key = aliases_to_attr.get(h, h) if use_header_aliases else h
+            row.append(bl.attributes.get(key))
 
-            bl_csv.append(str(r) if r is not None else "")
+        writer.writerow(["" if v is None else str(v) for v in row])
 
-        lines_to_write.append(",".join(bl_csv))
+    # Rows are joined by, not terminated with, a newline
+    return buffer.getvalue().rstrip("\n")
 
-    # write all complete lines
-    return "\n".join(lines_to_write)
+
+def _check_derived_columns(bedline: BedLine, values: dict, line_number: int) -> None:
+    """Raise if a derived column disagrees with the primername it comes from.
+
+    primername already encodes the prefix, number, class and suffix, so a
+    mismatch is ambiguous: there is no way to tell which the user meant.
+    """
+    derived = {
+        "amplicon_prefix": bedline.amplicon_prefix,
+        "amplicon_number": bedline.amplicon_number,
+        "primer_class_str": bedline.primer_class_str,
+        "primer_suffix": bedline.primer_suffix,
+    }
+
+    for header, parsed in derived.items():
+        if header not in values:
+            continue
+
+        expected = "" if parsed is None else str(parsed)
+        given = values[header]
+        if given != expected:
+            raise ValueError(
+                f"Line {line_number}: {header} ({given}) does not match "
+                f"primername ({bedline.primername}), which gives ({expected})"
+            )
+
+
+def from_delim_str(text: str, delimiter: str = ",") -> Scheme:
+    """Parse a delimited file written by to_delim_str back into a Scheme.
+
+    Columns outside the fixed schema are read as primer attributes, with the
+    column name used as the attribute key. Empty cells mean the attribute is
+    absent from that primer rather than set to an empty value.
+
+    Bed headers are not carried in the delimited format, so the resulting Scheme
+    has none. Attribute column names are taken literally, so a file written with
+    use_header_aliases=True yields the aliased names as attribute keys.
+
+    Args:
+        text: The delimited file content, including its column header row.
+        delimiter: Field separator.
+
+    Returns:
+        Scheme: A new Scheme object with no headers.
+
+    Raises:
+        ValueError: If no rows are found, a required column is missing, a row
+            has the wrong number of fields, or a derived column disagrees with
+            its primername.
+    """
+    rows = [
+        row
+        for row in csv.reader(io.StringIO(text), delimiter=delimiter)
+        if row and not row[0].lstrip().startswith("#") and any(v.strip() for v in row)
+    ]
+    if not rows:
+        raise ValueError("No rows found in the delimited file")
+
+    csv_headers = [h.strip() for h in rows[0]]
+
+    # Duplicates would silently resolve to whichever column came last
+    duplicates = sorted({h for h in csv_headers if csv_headers.count(h) > 1})
+    if duplicates:
+        raise ValueError(
+            f"Duplicate column name(s): {', '.join(duplicates)}. "
+            "Each column must be named once."
+        )
+
+    missing = [h for h in REQUIRED_CSV_HEADERS if h not in csv_headers]
+    if missing:
+        raise ValueError(f"Missing required column(s): {', '.join(missing)}")
+
+    attribute_headers = [h for h in csv_headers if h not in DEFAULT_CSV_HEADERS]
+
+    bedlines = []
+    for line_number, row in enumerate(rows[1:], start=2):
+        if len(row) != len(csv_headers):
+            raise ValueError(
+                f"Line {line_number} has {len(row)} field(s), "
+                f"expected {len(csv_headers)}"
+            )
+
+        values = {h: v.strip() for h, v in zip(csv_headers, row)}
+
+        bedline = BedLine(
+            chrom=values["chrom"],
+            start=values["start"],
+            end=values["end"],
+            primername=values["primername"],
+            pool=values["pool"],
+            strand=values["strand"],
+            sequence=values["sequence"],
+            attributes={k: values[k] for k in attribute_headers if values[k]},
+        )
+        _check_derived_columns(bedline, values, line_number)
+        bedlines.append(bedline)
+
+    return Scheme(headers=[], bedlines=bedlines)

@@ -1,4 +1,3 @@
-import pathlib
 import unittest
 
 from primalbedtools.amplicons import Amplicon
@@ -9,8 +8,7 @@ from primalbedtools.validate import (
     validate_primerbed,
     validate_ref_and_bed,
 )
-
-FASTA_PATH = pathlib.Path(__file__).parent / "inputs/msa.input.fasta"
+from tests.infiles import FASTA_PATH
 
 
 class TestValidate(unittest.TestCase):

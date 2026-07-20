@@ -2,13 +2,13 @@ import argparse
 from importlib.metadata import version
 
 from primalbedtools.amplicons import create_amplicons
-from primalbedtools.bedfiles import (
-    BedFileModifier,
-)
+from primalbedtools.bedfiles import BedFileModifier
+from primalbedtools.diff import ndiff_bedlines, unified_diff_bedlines
 from primalbedtools.fasta import read_fasta
+from primalbedtools.logs import configure_cli_logging
 from primalbedtools.remap import remap
 from primalbedtools.scheme import Scheme
-from primalbedtools.validate import validate, validate_primerbed
+from primalbedtools.validate import validate_primerbed, validate_ref_and_bed
 
 
 def main():
@@ -16,12 +16,27 @@ def main():
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {version('primalbedtools')}"
     )
+    verbosity = parser.add_mutually_exclusive_group()
+    verbosity.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable debug-level logging on stderr",
+    )
+    verbosity.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress warnings; only errors are logged",
+    )
 
     subparsers = parser.add_subparsers(dest="subparser_name", required=True)
 
     # Remap subcommand
     remap_parser = subparsers.add_parser("remap", help="Remap BED file coordinates")
-    remap_parser.add_argument("--bed", type=str, help="Input BED file", required=True)
+    remap_parser.add_argument(
+        "--bed", type=str, help="Input BED file, or - for stdin", required=True
+    )
     remap_parser.add_argument("--msa", type=str, help="Input MSA", required=True)
     remap_parser.add_argument(
         "--from_id", type=str, help="The ID to remap from", required=True
@@ -31,18 +46,26 @@ def main():
     )
 
     # Sort subcommand
-    sort_parser = subparsers.add_parser("sort", help="Sort BED file")
-    sort_parser.add_argument("bed", type=str, help="Input BED file")
+    sort_parser = subparsers.add_parser(
+        "sort", help="Sort BED file by chrom and amplicon number"
+    )
+    sort_parser.add_argument("bed", type=str, help="Input BED file, or - for stdin")
+    sort_parser.add_argument(
+        "-p",
+        "--by-pos",
+        action="store_true",
+        help="Sorts by chrom and amplicon position",
+    )
 
     # Update subcommand
     update_parser = subparsers.add_parser(
         "update", help="Update BED file with new information"
     )
-    update_parser.add_argument("bed", type=str, help="Input BED file")
+    update_parser.add_argument("bed", type=str, help="Input BED file, or - for stdin")
 
     # Amplicon subcommand
     amplicon_parser = subparsers.add_parser("amplicon", help="Create amplicon BED file")
-    amplicon_parser.add_argument("bed", type=str, help="Input BED file")
+    amplicon_parser.add_argument("bed", type=str, help="Input BED file, or - for stdin")
     amplicon_parser.add_argument(
         "-t", "--primertrim", help="Primertrim the amplicons", action="store_true"
     )
@@ -51,30 +74,34 @@ def main():
     merge_parser = subparsers.add_parser(
         "merge", help="Merge primer clouds into a single bedline"
     )
-    merge_parser.add_argument("bed", type=str, help="Input BED file")
+    merge_parser.add_argument("bed", type=str, help="Input BED file, or - for stdin")
 
     # fasta subcommand
     fasta_parser = subparsers.add_parser("fasta", help="Convert .bed to .fasta")
-    fasta_parser.add_argument("bed", type=str, help="Input BED file")
+    fasta_parser.add_argument("bed", type=str, help="Input BED file, or - for stdin")
 
     # validate bedfile
     validate_bedfile_parser = subparsers.add_parser(
         "validate_bedfile", help="Validate a bedfile"
     )
-    validate_bedfile_parser.add_argument("bed", type=str, help="Input BED file")
+    validate_bedfile_parser.add_argument(
+        "bed", type=str, help="Input BED file, or - for stdin"
+    )
 
     # validate bedfile
     validate_parser = subparsers.add_parser(
         "validate", help="Validate a bedfile and reference"
     )
-    validate_parser.add_argument("bed", type=str, help="Input BED file")
+    validate_parser.add_argument("bed", type=str, help="Input BED file, or - for stdin")
     validate_parser.add_argument("fasta", type=str, help="Input reference file")
 
     # legacy parser
     downgrade_parser = subparsers.add_parser(
         "downgrade", help="Downgrade a bed file to an older version"
     )
-    downgrade_parser.add_argument("bed", type=str, help="Input BED file")
+    downgrade_parser.add_argument(
+        "bed", type=str, help="Input BED file, or - for stdin"
+    )
     downgrade_parser.add_argument(
         "--merge-alts",
         help="Should alt primers be merged?",
@@ -83,11 +110,11 @@ def main():
     )
     # format
     format_parser = subparsers.add_parser("format", help="Format a bed file")
-    format_parser.add_argument("bed", type=str, help="Input BED file")
+    format_parser.add_argument("bed", type=str, help="Input BED file, or - for stdin")
 
     # format
     csv_parser = subparsers.add_parser("csv", help="Convert bed file to CSV")
-    csv_parser.add_argument("bed", type=str, help="Input BED file")
+    csv_parser.add_argument("bed", type=str, help="Input BED file, or - for stdin")
     csv_parser.add_argument(
         "--no-headers", help="Remove the header row from the CSV", action="store_true"
     )
@@ -97,7 +124,108 @@ def main():
         action="store_true",
     )
 
+    # from-csv subcommand
+    from_csv_parser = subparsers.add_parser(
+        "from-csv", help="Convert a CSV back into a bed file"
+    )
+    from_csv_parser.add_argument("csv", type=str, help="Input CSV file")
+
+    # diff subcommand
+    diff_parser = subparsers.add_parser(
+        "diff", help="Calculate the difference between two bedfiles"
+    )
+    diff_parser.add_argument("bedfile1", type=str, help="First bedfile")
+    diff_parser.add_argument("bedfile2", type=str, help="Second bedfile")
+    diff_parser.add_argument(
+        "--ndiff",
+        action="store_true",
+        help="Output ndiff format (default is unified)",
+    )
+    diff_parser.add_argument(
+        "--ignore-order",
+        action="store_true",
+        default=True,
+        help="Ignore order of bedlines (default: True)",
+    )
+    diff_parser.add_argument(
+        "--no-ignore-order",
+        action="store_false",
+        dest="ignore_order",
+        help="Do not ignore order of bedlines",
+    )
+    diff_parser.add_argument(
+        "--ignore-attr",
+        action="store_true",
+        help="Ignore attributes during comparison",
+    )
+    diff_parser.add_argument(
+        "--ignore-attr-order",
+        action="store_true",
+        help="Ignore the order of attribute keys during comparison",
+    )
+    diff_parser.add_argument(
+        "--ignore-header",
+        action="store_true",
+        help="Ignore headers during comparison",
+    )
+    diff_parser.add_argument(
+        "--ignore-primer-prefix",
+        action="store_true",
+        help="Ignore primer name prefixes during comparison",
+    )
+    diff_parser.add_argument(
+        "--ignore-no-diff",
+        action="store_true",
+        help="Ignore lines with no differences (only for ndiff)",
+    )
+
     args = parser.parse_args()
+    configure_cli_logging(verbose=args.verbose, quiet=args.quiet)
+
+    if args.subparser_name == "diff":
+        # stdin can only be consumed once, so the second read would compare
+        # against an empty scheme
+        if args.bedfile1 == "-" and args.bedfile2 == "-":
+            diff_parser.error(
+                "only one of bedfile1/bedfile2 can be read from stdin (-)"
+            )
+
+        scheme1 = Scheme.from_file(args.bedfile1)
+        scheme2 = Scheme.from_file(args.bedfile2)
+
+        if args.ndiff:
+            diff_gen = ndiff_bedlines(
+                scheme1.bedlines,
+                scheme2.bedlines,
+                header1=scheme1.headers,
+                header2=scheme2.headers,
+                ignore_order=args.ignore_order,
+                ignore_attr=args.ignore_attr,
+                ignore_attr_order=args.ignore_attr_order,
+                ignore_header=args.ignore_header,
+                ignore_no_diff=args.ignore_no_diff,
+                ignore_primer_prefix=args.ignore_primer_prefix,
+            )
+        else:
+            diff_gen = unified_diff_bedlines(
+                scheme1.bedlines,
+                scheme2.bedlines,
+                header1=scheme1.headers,
+                header2=scheme2.headers,
+                ignore_order=args.ignore_order,
+                ignore_attr=args.ignore_attr,
+                ignore_attr_order=args.ignore_attr_order,
+                ignore_header=args.ignore_header,
+                ignore_primer_prefix=args.ignore_primer_prefix,
+            )
+
+        for line in diff_gen:
+            print(line, end="")
+        exit(0)
+
+    if args.subparser_name == "from-csv":
+        print(Scheme.from_delim_file(args.csv).to_str(), end="")
+        exit(0)
 
     # Read in the scheme
     scheme = Scheme.from_file(args.bed)
@@ -108,7 +236,7 @@ def main():
         print(scheme.to_str(), end="")
         exit(0)
     elif args.subparser_name == "sort":
-        scheme.bedlines = BedFileModifier.sort_bedlines(scheme.bedlines)
+        scheme.bedlines = BedFileModifier.sort_bedlines(scheme.bedlines, args.by_pos)
         print(scheme.to_str(), end="")
         exit(0)
     elif args.subparser_name == "update":
@@ -127,6 +255,8 @@ def main():
         exit(0)  # Exit early
     elif args.subparser_name == "merge":
         scheme.bedlines = BedFileModifier.merge_primers(scheme.bedlines)
+        print(scheme.to_str(), end="")
+        exit(0)
     elif args.subparser_name == "fasta":
         for line in scheme.bedlines:
             print(line.to_fasta(), end="")
@@ -137,7 +267,10 @@ def main():
         exit(0)  # early exit
 
     elif args.subparser_name == "validate":
-        validate(bedpath=args.bed, refpath=args.fasta)
+        # Uses the scheme already read above; re-reading the path would consume
+        # stdin a second time and find nothing there.
+        validate_primerbed(scheme.bedlines)
+        validate_ref_and_bed(scheme.bedlines, args.fasta)
         exit(0)  # early exit
 
     elif args.subparser_name == "downgrade":

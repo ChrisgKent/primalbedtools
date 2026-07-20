@@ -97,7 +97,7 @@ ValueError: Invalid amplicon_prefix: (test_invalid). Must be alphanumeric or hyp
 
 During development of primer.bed files multiple versions have been used. 
 
-The current version (**v3**) uses a primername in the form of `{amplicon_prefix}_{amplicon_number}_{strand}_{primer_number}` (eg `SARS-CoV-2_1_RIGHT_1`). 
+The current version (v2) uses a primername in the form of `{amplicon_prefix}_{amplicon_number}_{strand}_{primer_number}` (eg `SARS-CoV-2_1_RIGHT_1`). 
 
 The old form typically used `{amplicon_prefix}_{amplicon_number}` or `{amplicon_prefix}_{amplicon_number}_alt1` (eg `SARS-CoV-2_1_RIGHT` | `SARS-CoV-2_1_RIGHT_alt`) to represent multiple primers for a site. 
 
@@ -255,3 +255,66 @@ Key points:
 - Header line has been written with all the primer attributes parsed into columns 
 
 - Using `use_header_aliases=True` means that `gc` has been parsed into `fractiongc` due to the `# gc=fractiongc` comment line
+
+### Adding primer weights
+
+Primer weights are stored as the `pw` attribute, and adding them by hand to every line of a bed file is tedious. A CSV can be exported, edited in Excel (or any spreadsheet), and converted back.
+
+!!! note "A bare number in column 8 is the legacy weight format, and is parsed into `pw` automatically. Older weighted bed files therefore need no conversion."
+
+The flow is three steps:
+
+```bash
+primalbedtools csv primers.bed > primers.csv
+# add a pw column in Excel, one value per row
+primalbedtools from-csv primers.csv > weighted.bed
+```
+
+Starting with a bed file that has no attributes:
+
+```
+# artic-bed-version v3.0
+# artic-sars-cov-2 / 400 / v5.3.2
+MN908947.3	47	78	SARS-CoV-2_1_LEFT_1	1	+	CTCTTGTAGATCTGTTCTCTAAACGAACTTT
+MN908947.3	419	447	SARS-CoV-2_1_RIGHT_1	1	-	AAAACGCCTTTTTCAACTTCTACTAAGC
+MN908947.3	344	366	SARS-CoV-2_2_LEFT_0	2	+	TCGTACGTGGCTTTGGAGACTC
+...
+```
+
+`primalbedtools csv primers.bed` produces a table with no attribute columns. Add a `pw` column on the end and fill it in:
+
+| chrom | start | end | primername | pool | strand | sequence | amplicon_prefix | amplicon_number | primer_class_str | primer_suffix | pw |
+|-------|-------|-----|------------|------|--------|----------|-----------------|-----------------|------------------|---------------|----|
+| MN908947.3 | 47 | 78 | SARS-CoV-2_1_LEFT_1 | 1 | + | CTCTTGTAGATCTGTTCTCTAAACGAACTTT | SARS-CoV-2 | 1 | LEFT | 1 | 1.4 |
+| MN908947.3 | 419 | 447 | SARS-CoV-2_1_RIGHT_1 | 1 | - | AAAACGCCTTTTTCAACTTCTACTAAGC | SARS-CoV-2 | 1 | RIGHT | 1 | 1.4 |
+| MN908947.3 | 344 | 366 | SARS-CoV-2_2_LEFT_0 | 2 | + | TCGTACGTGGCTTTGGAGACTC | SARS-CoV-2 | 2 | LEFT | 0 | 1.0 |
+
+The column name becomes the attribute key, so `pw` produces `pw=1.4`. Running `primalbedtools from-csv primers.csv` gives:
+
+```
+MN908947.3	47	78	SARS-CoV-2_1_LEFT_1	1	+	CTCTTGTAGATCTGTTCTCTAAACGAACTTT	pw=1.4
+MN908947.3	419	447	SARS-CoV-2_1_RIGHT_1	1	-	AAAACGCCTTTTTCAACTTCTACTAAGC	pw=1.4
+MN908947.3	344	366	SARS-CoV-2_2_LEFT_0	2	+	TCGTACGTGGCTTTGGAGACTC	pw=1.0
+...
+```
+
+Any other column added the same way becomes its own attribute, so `gc` alongside `pw` yields `pw=1.4;gc=0.35`. Leaving a cell empty means that primer has no weight, rather than a weight of `0`.
+
+!!! warning "The `#` header lines are not carried in the CSV, so `# artic-bed-version v3.0` is lost on the way back. Re-add any headers you need to keep."
+
+!!! note "Do not use `--use-header-aliases` when you intend to convert back. Column names are read literally, so `gc` aliased to `fractiongc` would return as an attribute named `fractiongc`."
+
+The same round trip is available from python:
+
+```python
+from primalbedtools.scheme import Scheme
+
+# export
+scheme = Scheme.from_file("primers.bed")
+open("primers.csv", "w").write(scheme.to_delim_str())
+
+# ...edit primers.csv, then read it back
+weighted = Scheme.from_delim_file("primers.csv")
+print(weighted.bedlines[0].attributes)
+{'pw': 1.4}
+```

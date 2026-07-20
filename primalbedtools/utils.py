@@ -1,3 +1,7 @@
+import pathlib
+import sys
+import typing
+
 AMBIGUOUS_DNA_COMPLEMENT = {
     "A": "T",
     "C": "G",
@@ -75,3 +79,12 @@ def complement_seq(seq: str) -> str:
 def strip_all_white_space(s: str) -> str:
     """Strips any whitespace"""
     return "".join(s.split())
+
+
+def read_text(path: typing.Union[str, pathlib.Path]) -> str:
+    """Read a file's contents, or stdin when path is "-"."""
+    if str(path) == "-":
+        return sys.stdin.read()
+
+    with open(path) as f:
+        return f.read()

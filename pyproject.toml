@@ -1,6 +1,6 @@
 [project]
 name = "primalbedtools"
-version = "1.0.0"
+version = "1.1.0"
 description = "A collection of tools for working with primer.bed files"
 authors = [{ name = "ChrisKent", email = "chrisgkent@gmail.com" }]
 requires-python = ">=3.9, <4"
@@ -12,6 +12,7 @@ Repository = "https://github.com/ChrisgKent/primalbedtools"
 
 [project.scripts]
 primalbedtools = "primalbedtools.main:main"
+pbt = "primalbedtools.main:main"
 
 [dependency-groups]
 dev = [
