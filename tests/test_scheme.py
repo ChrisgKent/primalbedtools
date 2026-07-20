@@ -3,6 +3,7 @@ import random
 import tempfile
 import unittest
 
+from primalbedtools.bedfiles import BedLine
 from primalbedtools.scheme import DEFAULT_CSV_HEADERS, Scheme
 from tests.infiles import (
     TEST_ATTRIBUTES_BEDFILE,
@@ -166,6 +167,18 @@ class TestScheme(unittest.TestCase):
         _csv_str = scheme.to_delim_str(include_headers=True, use_header_aliases=False)
         self.assertEqual(DEFAULT_CSV_HEADERS, original_headers)
 
+    def test_to_csv_no_trailing_newline(self):
+        scheme = Scheme.from_file(str(TEST_ATTRIBUTES_BEDFILE))
+        self.assertFalse(scheme.to_delim_str().endswith("\n"))
+
+    def test_to_csv_attribute_colliding_with_fixed_column_raises(self):
+        bedline = BedLine("chr1", 100, 120, "test_1_LEFT_1", 1, "+", "ACGT")
+        bedline.attributes = {"chrom": "elsewhere"}
+        scheme = Scheme(headers=[], bedlines=[bedline])
+
+        with self.assertRaisesRegex(ValueError, r"Attribute \(chrom\) collides"):
+            scheme.to_delim_str()
+
 
 class TestFromDelimStr(unittest.TestCase):
     """from_delim_str reverses to_delim_str."""
@@ -292,6 +305,39 @@ class TestFromDelimStr(unittest.TestCase):
         parsed = Scheme.from_delim_file(path)
 
         self.assertEqual(parsed.bedlines[0].chrom, "chr1")
+
+    def test_attribute_keyed_like_a_bedline_property(self):
+        # Resolving columns via getattr would read the property instead of the
+        # stored attribute, silently dropping "weight" and rewriting "length"
+        for key in ("weight", "length", "ipool", "amplicon_name"):
+            with self.subTest(key=key):
+                bedline = BedLine("chr1", 100, 120, "test_1_LEFT_1", 1, "+", "ACGT")
+                bedline.attributes = {key: "0.75"}
+                csv_str = Scheme(headers=[], bedlines=[bedline]).to_delim_str()
+
+                parsed = Scheme.from_delim_str(csv_str)
+
+                self.assertEqual(parsed.bedlines[0].attributes, {key: "0.75"})
+
+    def test_values_needing_quoting_round_trip(self):
+        for value in ("a,b", '"quoted', 'say"hi"'):
+            with self.subTest(value=value):
+                bedline = BedLine("chr1", 100, 120, "test_1_LEFT_1", 1, "+", "ACGT")
+                bedline.attributes = {"note": value}
+                csv_str = Scheme(headers=[], bedlines=[bedline]).to_delim_str()
+
+                parsed = Scheme.from_delim_str(csv_str)
+
+                self.assertEqual(parsed.bedlines[0].attributes, {"note": value})
+
+    def test_duplicate_column_raises(self):
+        csv_str = (
+            "chrom,start,end,primername,pool,strand,sequence,pw,pw\n"
+            "chr1,100,120,test_1_LEFT_1,1,+,ACGT,1.4,9.9\n"
+        )
+
+        with self.assertRaisesRegex(ValueError, r"Duplicate column name\(s\): pw"):
+            Scheme.from_delim_str(csv_str)
 
     def test_crlf_is_tolerated(self):
         csv_str = (

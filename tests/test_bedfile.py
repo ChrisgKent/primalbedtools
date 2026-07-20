@@ -322,6 +322,29 @@ class TestBedLine(unittest.TestCase):
             "chr1\t100\t200\tscheme_1_LEFT\t1\t+\tACGT\ta=1;b=2\n",
         )
 
+    def test_bedline_attribute_separators_rejected(self):
+        # ';' and '=' separate the attribute string, so allowing them would
+        # write a bedline that cannot be parsed back
+        bedline = BedLine(
+            chrom="chr1",
+            start=100,
+            end=200,
+            primername="scheme_1_LEFT",
+            pool=1,
+            strand="+",
+            sequence="ACGT",
+        )
+
+        for attributes, expected in [
+            ({"a;b": "1"}, r"Invalid attribute key \(a;b\)"),
+            ({"a=b": "1"}, r"Invalid attribute key \(a=b\)"),
+            ({"note": "x;y"}, r"Invalid attribute value \(x;y\) for key \(note\)"),
+            ({"note": "x=y"}, r"Invalid attribute value \(x=y\) for key \(note\)"),
+        ]:
+            with self.subTest(attributes=attributes):
+                with self.assertRaisesRegex(ValueError, expected):
+                    bedline.attributes = attributes
+
     def test_bedline_create_right(self):
         bedline = BedLine(
             chrom="chr1",

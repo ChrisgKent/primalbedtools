@@ -32,9 +32,13 @@ class CliTestCase(unittest.TestCase):
             stack.enter_context(contextlib.redirect_stderr(err))
             if stdin is not None:
                 stack.enter_context(mock.patch.object(sys, "stdin", io.StringIO(stdin)))
-            with self.assertRaises(SystemExit) as cm:
+            # Most subcommands exit(0); returning normally is also a success
+            code = 0
+            try:
                 main()
-        return cm.exception.code, out.getvalue(), err.getvalue()
+            except SystemExit as e:
+                code = e.code
+        return code, out.getvalue(), err.getvalue()
 
 
 class TestAmpliconCli(CliTestCase):
@@ -110,6 +114,66 @@ class TestFromCsvCli(CliTestCase):
             if not line.startswith("#")
         )
         self.assertEqual(bed_out, expected)
+
+
+class TestSubcommandSmoke(CliTestCase):
+    """Every subcommand runs, exits 0, and writes only its data to stdout."""
+
+    def assert_clean_run(self, argv, expected_in_stdout):
+        code, out, err = self.run_cli(argv)
+
+        self.assertEqual(code, 0, f"{argv} exited {code}: {err}")
+        self.assertIn(expected_in_stdout, out)
+        self.assertEqual(err, "", f"{argv} wrote to stderr: {err}")
+
+    def test_sort(self):
+        self.assert_clean_run(["sort", str(TEST_BEDFILE)], "SARS-CoV-2_1_LEFT_1")
+
+    def test_update(self):
+        self.assert_clean_run(["update", str(TEST_BEDFILE)], "SARS-CoV-2_1_LEFT_1")
+
+    def test_merge(self):
+        self.assert_clean_run(["merge", str(TEST_BEDFILE)], "SARS-CoV-2_1_LEFT")
+
+    def test_format(self):
+        self.assert_clean_run(["format", str(TEST_BEDFILE)], "SARS-CoV-2_1_LEFT_1")
+
+    def test_fasta(self):
+        self.assert_clean_run(["fasta", str(TEST_BEDFILE)], ">SARS-CoV-2_1_LEFT_1")
+
+    def test_csv(self):
+        self.assert_clean_run(["csv", str(TEST_BEDFILE)], "chrom,start,end")
+
+    def test_downgrade(self):
+        self.assert_clean_run(["downgrade", str(TEST_BEDFILE)], "SARS-CoV-2_1_LEFT")
+
+    def test_amplicon_primertrim(self):
+        self.assert_clean_run(["amplicon", "-t", str(TEST_BEDFILE)], "SARS-CoV-2_1")
+
+    def test_validate_bedfile(self):
+        code, _out, err = self.run_cli(["validate_bedfile", str(TEST_BEDFILE)])
+
+        self.assertEqual(code, 0)
+        self.assertEqual(err, "")
+
+
+class TestDiffCli(CliTestCase):
+    def test_both_inputs_from_stdin_is_rejected(self):
+        # stdin can only be read once, so this silently diffed against nothing
+        code, _out, err = self.run_cli(
+            ["diff", "-", "-"], stdin=TEST_BEDFILE.read_text()
+        )
+
+        self.assertNotEqual(code, 0)
+        self.assertIn("only one of bedfile1/bedfile2", err)
+
+    def test_one_input_from_stdin_works(self):
+        code, out, _err = self.run_cli(
+            ["diff", "-", str(TEST_BEDFILE)], stdin=TEST_BEDFILE.read_text()
+        )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(out, "")
 
 
 class TestStdinInput(CliTestCase):
